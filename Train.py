@@ -2,8 +2,10 @@ import argparse
 import datetime
 import os
 
-from Source.Defaults import HparamDefaults,DiffDefaults,ModelDefaults
-from Source.Utils import CreateMap,CreateMapCropped,ShowMap
+from Source.Utils import WriteJson
+from Source.Data import DataLoader
+from Source.Trainer import Trainer
+from PIL import Image
 
 def PrepareFolders(args):
 
@@ -46,12 +48,29 @@ def GenerateModelName():
 
 def main():
     Parser = argparse.ArgumentParser()
-    Parser.add_argument('--ModelDir',       default='ModelLogs',       help='Folder in which trained models are stored')
-    Parser.add_argument('--ModelName',      default='',                help='Name of trainingsession. If argument is empty a name will be generated')
-    Parser.add_argument('--ModelType',      default='Unet',            help='Which model architecture to run')
-    Parser.add_argument('--DataDir',        default='Data',            help='Which directory the training data is stored in')
+    Parser.add_argument('--ModelDir',           default='ModelLogs',       help='Folder in which trained models are stored')
+    Parser.add_argument('--ModelName',          default='',                help='Name of trainingsession. If argument is empty a name will be generated')
+    Parser.add_argument('--ModelType',          default='Unet',            help='Which model architecture to run')
+    Parser.add_argument('--DataDir',            default='Data',            help='Which directory the training data is stored in')
 
+    # learning args
+    Parser.add_argument('--BatchSize',          default= 1,                type=int)
+    Parser.add_argument('--LearningRate',       default= 1e-4,             type=float)
+    Parser.add_argument('--TrainEpoch',         default= 100,              type=int)
+    Parser.add_argument('--WeightDecay',        default= 0.0,              type=float)
+    Parser.add_argument('--EmaRate',            default= 0.9999,           type=float)
+    Parser.add_argument('--DataDropRate',       default= 0.2,              type=float)
+    Parser.add_argument('--DataImageSize',      default= 4320,             type=int)
+    Parser.add_argument('--LogInterval',        default= 100,              type=int)
+    Parser.add_argument('--SaveInterval',       default= 1000,             type=int)
 
+    # diffusion args
+    Parser.add_argument('--TimeSteps',          default= 1000,             type=int)
+    Parser.add_argument('--NoiseSchedule',      default= 'Linear',         type=str)
+
+    #Model args
+    Parser.add_argument('--ImageSize',          default= 64,               type=int)
+    Parser.add_argument('--ConditionalClasses', default= 31,               type=int)
 
     args = Parser.parse_args()
 
@@ -60,23 +79,24 @@ def main():
     if args.ModelType not in ModelTypes:
         raise ValueError("Please select valid modeltype: {}".format(ModelTypes))
     
+    ScheduleTypes = ['Linear']
+
+    if args.NoiseSchedule not in ScheduleTypes:
+        raise ValueError("Please select valid NoiseSchedule: {}".format(ModelTypes))
+    
     CurrentPath = PrepareFolders(args)
 
-    Hparams = HparamDefaults()
-    DiffusionSettings = DiffDefaults()
-    ModelSettings = ModelDefaults()
+    WriteJson(CurrentPath,"Settings",vars(args))
 
     #TODO: create logger
 
-    #TODO: load in dataset
+    InputMaps = [("Köppen-Geiger_Climate_Classification_Map_(1980–2016)_no_borders.png",'RGBA',Image.NEAREST)]
+    OutputMap = ("land_shallow_topo_2011_8192.jpg",'RGB',Image.LANCZOS)
+    DataObj = DataLoader(args,InputMaps,OutputMap)
 
     #TODO: call training loop here
+    TrainObj = Trainer()
 
-    # #test:
-    # map = CreateMap("Data/Köppen-Geiger_Climate_Classification_Map_(1980–2016)_no_borders.png",'RGBA')
-    # ShowMap(map)
-
-    
 
 
 
