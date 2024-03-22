@@ -2,10 +2,11 @@ import argparse
 import datetime
 import os
 
-from Source.Utils import WriteJson
-from Source.Data import DataLoader
+from Source.Utils import WriteJson,ShowMap,TanReNormalize
+from Source.Data import MapDataSet
 from Source.Trainer import Trainer
 from PIL import Image
+from torch.utils.data import DataLoader
 
 def PrepareFolders(args):
 
@@ -69,7 +70,7 @@ def main():
     Parser.add_argument('--NoiseSchedule',      default= 'Linear',         type=str)
 
     #Model args
-    Parser.add_argument('--ImageSize',          default= 64,               type=int)
+    Parser.add_argument('--ImageSize',          default= 4320,               type=int)
     Parser.add_argument('--ConditionalClasses', default= 31,               type=int)
 
     args = Parser.parse_args()
@@ -90,9 +91,12 @@ def main():
 
     #TODO: create logger
 
-    InputMaps = [("Köppen-Geiger_Climate_Classification_Map_(1980–2016)_no_borders.png",'RGBA',Image.NEAREST)]
+    InputMap = ("Köppen-Geiger_Climate_Classification_Map_(1980–2016)_no_borders.png",'RGBA',Image.NEAREST)
     OutputMap = ("land_shallow_topo_2011_8192.jpg",'RGB',Image.LANCZOS)
-    DataObj = DataLoader(args,InputMaps,OutputMap)
+    DataSet = MapDataSet(args,InputMap,OutputMap,CurrentPath)
+    DataIterator = DataLoader(DataSet,batch_size=args.BatchSize,shuffle=True)
+
+    
 
     #TODO: call training loop here
     TrainObj = Trainer()
