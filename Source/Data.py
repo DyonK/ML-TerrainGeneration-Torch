@@ -11,8 +11,10 @@ from torch.utils.data import Dataset
 class MapDataSet(Dataset):
     def __init__(self,args,InputMap,OutputMap,SessionPath) -> None:
 
-        self.DatasetImageSize = (args.DataImageSize, int( args.DataImageSize/2 ))
-        self.ImageSize = (args.ImageSize, int( args.ImageSize/2 ))
+        self.DataDropRate = args.DataDropRate
+
+        self.DatasetImageSize = args.DataImageSize
+        self.ImageSize = args.ImageSize
         
         DataPath = os.path.join("",args.DataDir)
 
@@ -47,6 +49,9 @@ class MapDataSet(Dataset):
         if random.random() > 0.5:
             X = TF.vflip(X)
             Y = TF.vflip(Y)
+
+        if not random.random() > self.DataDropRate:
+            X = torch.zeros_like(X)
 
         return X,Y
 
@@ -83,7 +88,7 @@ class MapDataSet(Dataset):
         assert FoundLabels <= SegClassCount, "Segmentation classes found exeeded expected amount of classes."
 
         IndexedMap = torch.reshape(Indexed,self.DatasetImageSize)
-        OneHotMap = torch.nn.functional.one_hot(IndexedMap,SegClassCount).permute(2, 0, 1)
+        OneHotMap = torch.nn.functional.one_hot(IndexedMap,SegClassCount).permute(2, 1, 0)
 
         return Unique , OneHotMap
 
