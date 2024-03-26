@@ -18,7 +18,7 @@ def CreateMap(Path: str, Mode) -> np.array:
     Map /= np.max(Map)
     return Map
 
-def CreateMapCropped(Path: str, Size: tuple, Mode: str, Resample=Image.NEAREST) -> np.array:
+def CreateMapCropped(Path: str, Size: tuple, Mode: str, Resample=Image.Resampling.NEAREST) -> np.array:
     Map = Image.open(Path).convert(Mode).resize(Size,resample=Resample)
     Map = np.array(Map).astype(np.float32)
     Map /= np.max(Map)

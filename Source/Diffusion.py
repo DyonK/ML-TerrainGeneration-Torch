@@ -54,7 +54,7 @@ class Diffusor():
 
                 if CFGscale > 0.0:
                     PredNoiseCFG = Model(X,T,torch.zeros_like(Cond))
-                    PredNoise = torch.lerp(PredNoise,PredNoiseCFG,CFGscale)
+                    PredNoise = torch.lerp(PredNoiseCFG,PredNoise,CFGscale)
 
                 Alpha = torch.gather(self.Alpha,0,T)[:,None,None,None]
                 Alphahat = torch.gather(self.AlphaHat,0,T)[:,None,None,None]

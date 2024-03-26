@@ -3,7 +3,7 @@ import datetime
 import os
 
 from Source.Utils import WriteJson,ShowMap,TanReNormalize
-from Source.Data import MapDataSet
+from Source.Data import *
 from Source.Trainer import Trainer
 from Source.Unet import Unet
 from Source.Diffusion import Diffusor
@@ -39,7 +39,7 @@ def PrepareFolders(args):
     except Exception as e:
         print(e)
 
-    return SessionPath
+    return SessionPath , DataPath , OutputPath
 
 
 def GenerateModelName():
@@ -47,7 +47,6 @@ def GenerateModelName():
     DateTime= datetime.datetime.now().strftime('%Y-%m-%d--%H-%M-%S')
     Name = 'Session-' + DateTime
     return Name
-
 
 def main():
     Parser = argparse.ArgumentParser()
@@ -60,7 +59,7 @@ def main():
     # learning args
     Parser.add_argument('--BatchSize',          default= 16,               type=int)
     Parser.add_argument('--LearningRate',       default= 1e-4,             type=float)
-    Parser.add_argument('--TrainEpoch',         default= 50,               type=int)
+    Parser.add_argument('--TrainEpoch',         default= 25,               type=int)
     Parser.add_argument('--WeightDecay',        default= 0.001,            type=float)
     Parser.add_argument('--EmaRate',            default= 0.995,            type=float)
     Parser.add_argument('--DataDropRate',       default= 0.2,              type=float)
@@ -89,15 +88,15 @@ def main():
     if args.NoiseSchedule not in ScheduleTypes:
         raise ValueError("Please select valid NoiseSchedule: {}".format(ModelTypes))
     
-    CurrentPath = PrepareFolders(args)
+    CurrentPath , DataPath , OutputPath = PrepareFolders(args)
 
     WriteJson(CurrentPath,"Settings",vars(args))
 
     #TODO: create logger
 
     #Data
-    InputMap = ("Köppen-Geiger_Climate_Classification_Map_(1980–2016)_no_borders.png",'RGBA',Image.NEAREST)
-    OutputMap = ("land_shallow_topo_2011_8192.jpg",'RGB',Image.LANCZOS)
+    InputMap = Map(os.path.join(DataPath,"Köppen-Geiger_Climate_Classification_Map_(1980–2016)_no_borders.png"),'RGBA',Image.Resampling.NEAREST,args.DataImageSize)
+    OutputMap = Map(os.path.join(DataPath,"land_shallow_topo_2011_8192.jpg"),'RGB',Image.Resampling.LANCZOS,args.DataImageSize)
     DataSet = MapDataSet(args,InputMap,OutputMap,CurrentPath)
     DataIterator = DataLoader(DataSet,batch_size=args.BatchSize,shuffle=True)
 
@@ -115,9 +114,18 @@ def main():
 
     #sample for testing
     CondImageSampling = DataSet.CropAndRoll(DataSet.InputMap,args.ImageSize,[0,0])[None,...]
-    OutImage = DiffusionObj.SampleImage(Model,1,CondImageSampling).to('cpu')
 
-    #ShowMap(CondImageSampling[0,...].permute(2,1,0).numpy())
+    OutImage = DiffusionObj.SampleImage(Model,1,CondImageSampling).to('cpu')
+    ShowMap(OutImage[0,...].permute(2,1,0).numpy())
+
+    OutImage = DiffusionObj.SampleImage(Model,1,CondImageSampling,CFGscale=0.0).to('cpu')
+    ShowMap(OutImage[0,...].permute(2,1,0).numpy())
+
+    EMAModel = TrainObj.ReturnEmaModel()
+    OutImage = DiffusionObj.SampleImage(EMAModel,1,CondImageSampling).to('cpu')
+    ShowMap(OutImage[0,...].permute(2,1,0).numpy())
+
+    OutImage = DiffusionObj.SampleImage(EMAModel,1,CondImageSampling,CFGscale=0.0).to('cpu')
     ShowMap(OutImage[0,...].permute(2,1,0).numpy())
 
 if __name__ == "__main__":

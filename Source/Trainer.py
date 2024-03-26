@@ -5,8 +5,6 @@ import copy
 from torch.utils.data import DataLoader
 from Source.Diffusion import Diffusor
 
-from Source.Utils import ShowMap,TanReNormalize,TanNormalize
-
 import numpy as np
 
 class Trainer():
@@ -31,9 +29,11 @@ class Trainer():
 
     def TrainLoop(self,Dataset: DataLoader) -> None:
 
+        Time1 = time.time()
+
         for Epoch in range(0,self.Epoch):
 
-            Time1 = time.time()
+            
             EpochLosses = []
 
             for i,(Cond,OutImage) in enumerate(Dataset,0):

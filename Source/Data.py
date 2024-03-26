@@ -7,30 +7,76 @@ import torchvision.transforms.functional as TF
 
 from Source.Utils import CreateMapCropped,ShowMap,TanNormalize,WriteJson
 from torch.utils.data import Dataset
+from PIL import Image
+
+class Map():
+    def __init__(self,Path:str,Mode:str,Sample,Size:tuple) -> None:
+
+        self.Path = Path
+        self.Mode = Mode
+        self.Sample = Sample
+        self.Size = Size
+
+        self.MapData = self.LoadMap()
+
+    def ConvertOneHot(self,SegClassCount):
+
+        FMap = torch.flatten(self.MapData,1,2)
+        Unique , Indexed = torch.unique(FMap,return_inverse=True,dim=1)
+
+        FoundLabels = Unique.shape[1]
+        
+        assert FoundLabels <= SegClassCount, "Segmentation classes found exeeded expected amount of classes."
+
+        IndexedMap = torch.reshape(Indexed,self.Size)
+        OneHotMap = torch.nn.functional.one_hot(IndexedMap,SegClassCount).permute(2, 1, 0)
+
+        return Unique , OneHotMap 
+    
+    def ConvertKoppen(self):
+
+        assert self.Mode == 'RGBA'
+        assert self.Sample == Image.Resampling.NEAREST
+
+        KoppenDict = {} #koppen rgb values and its climates
+
+        #Convert to onehot
+
+        
+        #TODO: implement KoppenMap convertion to onehot
+        pass
+
+    def LoadMap(self) -> torch.tensor:
+        Map = CreateMapCropped(self.Path,self.Size,self.Mode,Resample=self.Sample)
+        Map = torch.tensor(Map).permute(2, 0, 1)
+        return Map
+    
+    def ReturnMapdata(self) -> torch.tensor:
+        return self.MapData
+    
+    def ReturnMapNumpy(self) -> np.array:
+        return self.MapData.permute(1,2,0).numpy()
 
 class MapDataSet(Dataset):
-    def __init__(self,args,InputMap,OutputMap,SessionPath) -> None:
+    def __init__(self,args,InputMap:Map,OutputMap:Map,SessionPath:str) -> None:
 
         self.DataDropRate = args.DataDropRate
 
         self.DatasetImageSize = args.DataImageSize
         self.ImageSize = args.ImageSize
-        
-        DataPath = os.path.join("",args.DataDir)
 
         #get input map
-        self.InputMap = self.LoadMap(DataPath,InputMap)
-        LabelList, self.InputMap = self.ConvertOneHot(self.InputMap,args.ConditionalClasses)
+        LabelList, self.InputMap = InputMap.ConvertOneHot(args.ConditionalClasses)
+
+        #get output maps
+        self.OutputMap = TanNormalize(OutputMap.ReturnMapdata())
+
+        assert InputMap.Size == self.DatasetImageSize and OutputMap.Size == self.DatasetImageSize 
 
         #Write found LabelValues to Json
         WriteJson(SessionPath,"SegmentationClasses",torch.transpose(LabelList,0,1).tolist())
-            
-        #get output maps
-        self.OutputMap = self.LoadMap(DataPath,OutputMap)
-        self.OutputMap = TanNormalize(self.OutputMap)
 
         self.PositionList, self.ListSize = self.GeneratePositionVector()
-
     
     def __len__(self):
         return self.ListSize
@@ -77,24 +123,3 @@ class MapDataSet(Dataset):
         Y,X = Position
 
         return torch.roll(Map,-Y,dims=2)[:,X:X+Size[1],0:Size[0]]
-    
-    def ConvertOneHot(self,Map,SegClassCount):
-
-        FMap = torch.flatten(Map,1,2)
-        Unique , Indexed = torch.unique(FMap,return_inverse=True,dim=1)
-
-        FoundLabels = Unique.shape[1]
-        
-        assert FoundLabels <= SegClassCount, "Segmentation classes found exeeded expected amount of classes."
-
-        IndexedMap = torch.reshape(Indexed,self.DatasetImageSize)
-        OneHotMap = torch.nn.functional.one_hot(IndexedMap,SegClassCount).permute(2, 1, 0)
-
-        return Unique , OneHotMap
-
-    def LoadMap(self,DataPath: str,MapArgs: tuple):
-        MapName , MapMode , MapSample = MapArgs
-        MapPath = os.path.join(DataPath,MapName)
-        Map = CreateMapCropped(MapPath,self.DatasetImageSize,MapMode,Resample=MapSample)
-        Map = torch.tensor(Map).permute(2, 0, 1)
-        return Map
