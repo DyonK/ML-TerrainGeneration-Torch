@@ -3,6 +3,7 @@ import torchvision
 import math
 
 from typing import Optional
+from Source.Utils import ShowMap
 
 class EncodeBlock(torch.nn.Module):
     def __init__(self,Channels,TimeChannels) -> None:
@@ -155,7 +156,7 @@ class Spade(torch.nn.Module):
         x = self.GroupNorm1(x)
 
         NewSize = x.shape[2:]
-        Cond = torchvision.transforms.Resize(NewSize,torchvision.transforms.InterpolationMode.NEAREST)(Cond).float()
+        Cond = torch.nn.functional.interpolate(Cond.float(),NewSize,mode='nearest')
 
         sx = self.Conv1(Cond)
         sx = self.Relu1(sx)

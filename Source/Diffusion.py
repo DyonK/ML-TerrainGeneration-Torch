@@ -45,7 +45,7 @@ class Diffusor():
         Cond = Cond.to(self.Device)
 
         with torch.no_grad():
-            X = torch.randn((N,3,self.ImageSize[0],self.ImageSize[1])).to(self.Device)
+            X = torch.randn((N,3,self.ImageSize[1],self.ImageSize[0])).to(self.Device)
             for i in reversed(range(0,self.Timesteps)):
 
                 T = (torch.ones(N)*i).long().to(self.Device)

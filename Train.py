@@ -57,14 +57,14 @@ def main():
     Parser.add_argument('--Device',             default='cuda',            help='which device to run project on')
 
     # learning args
-    Parser.add_argument('--BatchSize',          default= 16,               type=int)
+    Parser.add_argument('--BatchSize',          default= 1,               type=int)
     Parser.add_argument('--LearningRate',       default= 1e-4,             type=float)
-    Parser.add_argument('--TrainEpoch',         default= 25,               type=int)
-    Parser.add_argument('--WeightDecay',        default= 0.001,            type=float)
+    Parser.add_argument('--TrainEpoch',         default= 20,               type=int)
+    Parser.add_argument('--WeightDecay',        default= 0.000,            type=float)
     Parser.add_argument('--EmaRate',            default= 0.995,            type=float)
     Parser.add_argument('--DataDropRate',       default= 0.2,              type=float)
-    Parser.add_argument('--DataImageSize',      default= (256,128),        type=tuple)
-    Parser.add_argument('--LogInterval',        default= 100,              type=int)
+    Parser.add_argument('--DataImageSize',      default= (512,256),        type=tuple)
+    Parser.add_argument('--LogInterval',        default= 1000,              type=int)
     Parser.add_argument('--SaveInterval',       default= 1000,             type=int)
 
     # diffusion args
@@ -72,7 +72,7 @@ def main():
     Parser.add_argument('--NoiseSchedule',      default= 'Linear',         type=str)
 
     #Model args
-    Parser.add_argument('--ImageSize',          default= (256,128),        type=tuple)
+    Parser.add_argument('--ImageSize',          default= (512,256),        type=tuple)
     Parser.add_argument('--ConditionalClasses', default= 31,               type=int)
     Parser.add_argument('--TimeDims',           default= 256,              type=int)
 
@@ -115,18 +115,18 @@ def main():
     #sample for testing
     CondImageSampling = DataSet.CropAndRoll(DataSet.InputMap,args.ImageSize,[0,0])[None,...]
 
-    OutImage = DiffusionObj.SampleImage(Model,1,CondImageSampling).to('cpu')
-    ShowMap(OutImage[0,...].permute(2,1,0).numpy())
+    OutImage = DiffusionObj.SampleImage(Model,1,CondImageSampling,).to('cpu')
+    ShowMap(OutImage[0,...].permute(1,2,0).numpy())
 
     OutImage = DiffusionObj.SampleImage(Model,1,CondImageSampling,CFGscale=0.0).to('cpu')
-    ShowMap(OutImage[0,...].permute(2,1,0).numpy())
+    ShowMap(OutImage[0,...].permute(1,2,0).numpy())
 
     EMAModel = TrainObj.ReturnEmaModel()
     OutImage = DiffusionObj.SampleImage(EMAModel,1,CondImageSampling).to('cpu')
-    ShowMap(OutImage[0,...].permute(2,1,0).numpy())
+    ShowMap(OutImage[0,...].permute(1,2,0).numpy())
 
     OutImage = DiffusionObj.SampleImage(EMAModel,1,CondImageSampling,CFGscale=0.0).to('cpu')
-    ShowMap(OutImage[0,...].permute(2,1,0).numpy())
+    ShowMap(OutImage[0,...].permute(1,2,0).numpy())
 
 if __name__ == "__main__":
     main()
