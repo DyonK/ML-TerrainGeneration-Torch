@@ -1,4 +1,3 @@
-import os
 import torch
 import random
 
@@ -29,7 +28,7 @@ class Map():
         assert FoundLabels <= SegClassCount, "Segmentation classes found exeeded expected amount of classes."
 
         IndexedMap = torch.reshape(Indexed,self.Size)
-        OneHotMap = torch.nn.functional.one_hot(IndexedMap,SegClassCount).permute(2, 1, 0)
+        OneHotMap = torch.nn.functional.one_hot(IndexedMap,SegClassCount).permute(2,1,0)
 
         return Unique , OneHotMap 
     
@@ -38,7 +37,9 @@ class Map():
         assert self.Mode == 'RGBA'
         assert self.Sample == Image.Resampling.NEAREST
 
-        KoppenDict = {} #koppen rgb values and its climates
+        KoppenDict = {
+            "Water": [0.0,0.0,0.0,0.0],
+            } #koppen rgb values and its climates
 
         #Convert to onehot
 

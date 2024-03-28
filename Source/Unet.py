@@ -33,20 +33,20 @@ class Unet(torch.nn.Module):
         self.Decode2 = DecodeBlock(512,self.ConditionalClasses,self.TimeHidden)
 
         #DECODER
-        self.ConvTran1 = torch.nn.ConvTranspose2d(512,512,kernel_size=3,padding=1,stride=2,output_padding=1)
+        self.ConvTran1 = torch.nn.ConvTranspose2d(1024,512,kernel_size=3,padding=1,stride=2,output_padding=1)
         self.Decode3 = DecodeBlock(512,self.ConditionalClasses,self.TimeHidden)
 
-        self.ConvTran2 = torch.nn.ConvTranspose2d(512,256,kernel_size=3,padding=1,stride=2,output_padding=1)
+        self.ConvTran2 = torch.nn.ConvTranspose2d(1024,256,kernel_size=3,padding=1,stride=2,output_padding=1)
         self.Decode4 = DecodeBlock(256,self.ConditionalClasses,self.TimeHidden)
 
-        self.ConvTran3 = torch.nn.ConvTranspose2d(256,128,kernel_size=3,padding=1,stride=2,output_padding=1)
+        self.ConvTran3 = torch.nn.ConvTranspose2d(512,128,kernel_size=3,padding=1,stride=2,output_padding=1)
         self.Decode5 = DecodeBlock(128,self.ConditionalClasses,self.TimeHidden)
 
-        self.ConvTran4 = torch.nn.ConvTranspose2d(128,64,kernel_size=3,padding=1,stride=2,output_padding=1)
+        self.ConvTran4 = torch.nn.ConvTranspose2d(256,64,kernel_size=3,padding=1,stride=2,output_padding=1)
         self.Decode6 = DecodeBlock(64,self.ConditionalClasses,self.TimeHidden)
 
-        self.Decode7 = DecodeBlock(64,self.ConditionalClasses,self.TimeHidden)
-        self.ConvLast = torch.nn.Conv2d(64,3,kernel_size=3,padding=1)
+        #self.Decode7 = DecodeBlock(128,self.ConditionalClasses,self.TimeHidden)
+        self.ConvLast = torch.nn.Conv2d(128,3,kernel_size=3,padding=1)
 
     def forward(self,x,T,Cond):
 
@@ -78,24 +78,24 @@ class Unet(torch.nn.Module):
         x = self.Decode2(x,Cond,EmbT)
 
         #DECODE
-        x = x + skip5
+        x = torch.cat([x, skip5],dim=1)
         x = self.ConvTran1(x)
         x = self.Decode3(x,Cond,EmbT)
 
-        x = x + skip4
+        x = torch.cat([x, skip4],dim=1)
         x = self.ConvTran2(x)
         x = self.Decode4(x,Cond,EmbT)
 
-        x = x + skip3
+        x = torch.cat([x, skip3],dim=1)
         x = self.ConvTran3(x)
         x = self.Decode5(x,Cond,EmbT)
 
-        x = x + skip2
+        x = torch.cat([x, skip2],dim=1)
         x = self.ConvTran4(x)
         x = self.Decode6(x,Cond,EmbT)
 
-        x = x + skip1
-        x = self.Decode7(x,Cond,EmbT)
+        x = torch.cat([x, skip1],dim=1)
+        #x = self.Decode7(x,Cond,EmbT)
         x = self.ConvLast(x)
 
         return x

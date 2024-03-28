@@ -2,7 +2,6 @@ import torch
 
 import numpy as np
 
-from typing import Optional
 from Source.Utils import TanReNormalize
 
 class Diffusor():
@@ -23,7 +22,6 @@ class Diffusor():
 
         One = torch.tensor([1.0]).to(self.Device)
         self.AlphaHatPrev = torch.cat([One,self.AlphaHat])
-        
 
     def RandomTimeStep(self,N):
         return torch.randint(0,self.Timesteps,size=[N,])
@@ -65,6 +63,8 @@ class Diffusor():
                     Noise = torch.zeros_like(X)
                 else:
                     Noise = torch.randn_like(X)
+
+                #TODO: Clean up sampling code
 
                 X0 = torch.sqrt(1.0/Alphahat) * X - torch.sqrt(1.0 / Alphahat -1.0) * PredNoise
                 X0 = X0.clamp(-1,1)

@@ -2,7 +2,7 @@ import argparse
 import datetime
 import os
 
-from Source.Utils import WriteJson,ShowMap,TanReNormalize
+from Source.Utils import WriteJson
 from Source.Data import *
 from Source.Trainer import Trainer
 from Source.Unet import Unet
@@ -41,7 +41,6 @@ def PrepareFolders(args):
 
     return SessionPath , DataPath , OutputPath
 
-
 def GenerateModelName():
 
     DateTime= datetime.datetime.now().strftime('%Y-%m-%d--%H-%M-%S')
@@ -57,22 +56,22 @@ def main():
     Parser.add_argument('--Device',             default='cuda',            help='which device to run project on')
 
     # learning args
-    Parser.add_argument('--BatchSize',          default= 1,               type=int)
+    Parser.add_argument('--BatchSize',          default= 16,               type=int)
     Parser.add_argument('--LearningRate',       default= 1e-4,             type=float)
-    Parser.add_argument('--TrainEpoch',         default= 20,               type=int)
+    Parser.add_argument('--TrainEpoch',         default= 200,               type=int)
     Parser.add_argument('--WeightDecay',        default= 0.000,            type=float)
     Parser.add_argument('--EmaRate',            default= 0.995,            type=float)
     Parser.add_argument('--DataDropRate',       default= 0.2,              type=float)
-    Parser.add_argument('--DataImageSize',      default= (512,256),        type=tuple)
-    Parser.add_argument('--LogInterval',        default= 1000,              type=int)
-    Parser.add_argument('--SaveInterval',       default= 1000,             type=int)
+    Parser.add_argument('--DataImageSize',      default= (128,64),        type=tuple)
+    Parser.add_argument('--LogInterval',        default= 100,              type=int)
+    Parser.add_argument('--SaveInterval',       default= 20,             type=int)
 
     # diffusion args
     Parser.add_argument('--TimeSteps',          default= 1000,             type=int)
     Parser.add_argument('--NoiseSchedule',      default= 'Linear',         type=str)
 
     #Model args
-    Parser.add_argument('--ImageSize',          default= (512,256),        type=tuple)
+    Parser.add_argument('--ImageSize',          default= (128,64),        type=tuple)
     Parser.add_argument('--ConditionalClasses', default= 31,               type=int)
     Parser.add_argument('--TimeDims',           default= 256,              type=int)
 
@@ -92,8 +91,6 @@ def main():
 
     WriteJson(CurrentPath,"Settings",vars(args))
 
-    #TODO: create logger
-
     #Data
     InputMap = Map(os.path.join(DataPath,"Köppen-Geiger_Climate_Classification_Map_(1980–2016)_no_borders.png"),'RGBA',Image.Resampling.NEAREST,args.DataImageSize)
     OutputMap = Map(os.path.join(DataPath,"land_shallow_topo_2011_8192.jpg"),'RGB',Image.Resampling.LANCZOS,args.DataImageSize)
@@ -109,24 +106,8 @@ def main():
     DiffusionObj = Diffusor(args)
 
     #Training
-    TrainObj = Trainer(args,Model,DiffusionObj)
+    TrainObj = Trainer(args,Model,DiffusionObj,CurrentPath)
     TrainObj.TrainLoop(DataIterator)
-
-    #sample for testing
-    CondImageSampling = DataSet.CropAndRoll(DataSet.InputMap,args.ImageSize,[0,0])[None,...]
-
-    OutImage = DiffusionObj.SampleImage(Model,1,CondImageSampling,).to('cpu')
-    ShowMap(OutImage[0,...].permute(1,2,0).numpy())
-
-    OutImage = DiffusionObj.SampleImage(Model,1,CondImageSampling,CFGscale=0.0).to('cpu')
-    ShowMap(OutImage[0,...].permute(1,2,0).numpy())
-
-    EMAModel = TrainObj.ReturnEmaModel()
-    OutImage = DiffusionObj.SampleImage(EMAModel,1,CondImageSampling).to('cpu')
-    ShowMap(OutImage[0,...].permute(1,2,0).numpy())
-
-    OutImage = DiffusionObj.SampleImage(EMAModel,1,CondImageSampling,CFGscale=0.0).to('cpu')
-    ShowMap(OutImage[0,...].permute(1,2,0).numpy())
 
 if __name__ == "__main__":
     main()

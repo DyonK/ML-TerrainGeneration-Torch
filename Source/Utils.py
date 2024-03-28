@@ -28,6 +28,10 @@ def ShowMap(Map: np.array):
     Img = Image.fromarray((Map * 255).astype(np.uint8))
     Img.show()
 
+def SaveMap(Map: np.array, Path: str):
+    img = Image.fromarray((Map * 255).astype(np.uint8))
+    img.save(Path)
+
 def TanNormalize(X):
     return (X-0.5)/0.5
 
