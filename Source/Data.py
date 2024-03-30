@@ -27,8 +27,8 @@ class Map():
         
         assert FoundLabels <= SegClassCount, "Segmentation classes found exeeded expected amount of classes."
 
-        IndexedMap = torch.reshape(Indexed,self.Size)
-        OneHotMap = torch.nn.functional.one_hot(IndexedMap,SegClassCount).permute(2,1,0)
+        IndexedMap = torch.reshape(Indexed,(self.Size[1],self.Size[0]))
+        OneHotMap = torch.nn.functional.one_hot(IndexedMap,SegClassCount).permute(2,0,1)
 
         return Unique , OneHotMap 
     

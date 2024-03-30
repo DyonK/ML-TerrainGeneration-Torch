@@ -59,9 +59,9 @@ class Trainer():
         Time1 = time.time()
         DataSetLength = len(Dataset)
 
-        for Epoch in range(0,self.Epoch):
+        LossList = []
 
-            EpochLosses = []
+        for Epoch in range(0,self.Epoch):
 
             for i,(Cond,OutImage) in enumerate(Dataset,0):
 
@@ -74,7 +74,7 @@ class Trainer():
                 X,Noise = self.Diffusor.AddNoise(OutImage,T)
                 
                 Loss = self.TrainStep(X,Noise,Cond,T)
-                EpochLosses.append(Loss)
+                LossList.append(Loss)
 
                 if self.SessionPath != None:
                         self.Board.add_scalar("MSE", Loss, global_step=Step)
@@ -82,26 +82,26 @@ class Trainer():
 
                 if i % self.LogInterval == 0:
 
-                    AveLoss = np.mean(EpochLosses)
+                    AveLoss = np.mean(LossList)
 
                     Time2 = time.time()
-                    Msg = 'Epoch: {} | Itteration: {} | average diffusion loss: {} | time(s):{} '.format(Epoch,i,AveLoss,Time2-Time1)
+                    Msg = 'Epoch: {} | Itteration: {} | Step: {}| average diffusion loss: {} | time(s):{} '.format(Epoch,i,Step,AveLoss,Time2-Time1)
                     print(Msg)
                     self.Logger.info(Msg)
                     Time1 = time.time()
 
-                    EpochLosses.clear()
+                    LossList.clear()
 
-            if Epoch % self.SaveInterval == 0 and self.SessionPath != None:
-                
-                self.SaveModel(str(Epoch))
+                if Step % self.SaveInterval == 0 and self.SessionPath != None:
+                    
+                    self.SaveModel(str(Step))
 
-                SampleCond = next(iter(Dataset))[0]
-                ModelGrid = self.SampleLog(self.Model,self.BatchSize,SampleCond,"Model_{}".format(Epoch))
-                EmaGrid = self.SampleLog(self.EmaModel,self.BatchSize,SampleCond,"EmaModel_{}".format(Epoch))
+                    SampleCond = next(iter(Dataset))[0]
+                    ModelGrid = self.SampleLog(self.Model,self.BatchSize,SampleCond,"Model_{}".format(Step))
+                    EmaGrid = self.SampleLog(self.EmaModel,self.BatchSize,SampleCond,"EmaModel_{}".format(Step))
 
-                self.Board.add_image("ModelTrainSamples",ModelGrid,dataformats='HWC',global_step=Step)
-                self.Board.add_image("EmaModelTrainSamples",EmaGrid,dataformats='HWC',global_step=Step)
+                    self.Board.add_image("ModelTrainSamples",ModelGrid,dataformats='HWC',global_step=Step)
+                    self.Board.add_image("EmaModelTrainSamples",EmaGrid,dataformats='HWC',global_step=Step)
         
         if self.SavePath != None:
             self.SaveModel('Final')

@@ -18,6 +18,10 @@ def PrepareFolders(args):
     LogPath = os.path.join(BaseDir,args.ModelDir)
     os.makedirs(LogPath,exist_ok=True)
 
+    #make input folder
+    OutputPath = os.path.join(BaseDir,"Input")
+    os.makedirs(OutputPath,exist_ok=True)
+
     #make output folder
     OutputPath = os.path.join(BaseDir,"Output")
     os.makedirs(OutputPath,exist_ok=True)
@@ -56,22 +60,22 @@ def main():
     Parser.add_argument('--Device',             default='cuda',            help='which device to run project on')
 
     # learning args
-    Parser.add_argument('--BatchSize',          default= 16,               type=int)
+    Parser.add_argument('--BatchSize',          default= 1,                type=int)
     Parser.add_argument('--LearningRate',       default= 1e-4,             type=float)
-    Parser.add_argument('--TrainEpoch',         default= 200,               type=int)
-    Parser.add_argument('--WeightDecay',        default= 0.000,            type=float)
+    Parser.add_argument('--TrainEpoch',         default= 2,                type=int)
+    Parser.add_argument('--WeightDecay',        default= 0.00,            type=float)
     Parser.add_argument('--EmaRate',            default= 0.995,            type=float)
     Parser.add_argument('--DataDropRate',       default= 0.2,              type=float)
-    Parser.add_argument('--DataImageSize',      default= (128,64),        type=tuple)
-    Parser.add_argument('--LogInterval',        default= 100,              type=int)
-    Parser.add_argument('--SaveInterval',       default= 20,             type=int)
+    Parser.add_argument('--DataImageSize',      default= (2048,1024),       type=tuple)
+    Parser.add_argument('--LogInterval',        default= 250,              type=int)
+    Parser.add_argument('--SaveInterval',       default= 512 * 5,             type=int)
 
     # diffusion args
     Parser.add_argument('--TimeSteps',          default= 1000,             type=int)
     Parser.add_argument('--NoiseSchedule',      default= 'Linear',         type=str)
 
     #Model args
-    Parser.add_argument('--ImageSize',          default= (128,64),        type=tuple)
+    Parser.add_argument('--ImageSize',          default= (2048,1024),       type=tuple)
     Parser.add_argument('--ConditionalClasses', default= 31,               type=int)
     Parser.add_argument('--TimeDims',           default= 256,              type=int)
 

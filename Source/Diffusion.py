@@ -36,7 +36,7 @@ class Diffusor():
 
         return AlphaSquare * X + AlphaSquareMin * e, e
     
-    def SampleImage(self,Model :torch.nn.Module,N: int, Cond, CFGscale = 2.0):
+    def SampleImage(self,Model :torch.nn.Module,N: int, Cond, CFGscale = 3.0):
 
         Model.eval()
 

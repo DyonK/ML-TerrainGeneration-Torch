@@ -6,17 +6,18 @@ from typing import Optional
 from Source.Utils import ShowMap
 
 class EncodeBlock(torch.nn.Module):
-    def __init__(self,Channels,TimeChannels) -> None:
+    def __init__(self,Channels,TimeChannels,NormGroups=32) -> None:
         super(EncodeBlock,self).__init__()
 
         self.Channels = Channels
+        self.NormGroups = NormGroups
 
-        self.Norm1 = torch.nn.GroupNorm(32,self.Channels)
+        self.Norm1 = torch.nn.GroupNorm(self.NormGroups,self.Channels)
 
         self.Silu1 = torch.nn.SiLU()
         self.Conv1 = torch.nn.Conv2d(self.Channels,self.Channels,kernel_size=3,padding=1)
 
-        self.Norm2 = torch.nn.GroupNorm(32,self.Channels)
+        self.Norm2 = torch.nn.GroupNorm(self.NormGroups,self.Channels)
         self.TimeEmb1 = TimeScaleShift(TimeChannels,self.Channels)
 
         self.Silu2 = torch.nn.SiLU()
@@ -42,17 +43,18 @@ class EncodeBlock(torch.nn.Module):
         return x
 
 class DecodeBlock(torch.nn.Module):
-    def __init__(self,Channels,CondChannels,TimeChannels) -> None:
+    def __init__(self,Channels,CondChannels,TimeChannels,NormGroups=32) -> None:
         super(DecodeBlock,self).__init__()
 
         self.Channels = Channels
+        self.NormGroups = NormGroups
 
-        self.Spade1 = Spade(self.Channels,CondChannels)
+        self.Spade1 = Spade(self.Channels,CondChannels,NormGroups=self.NormGroups)
 
         self.Silu1 = torch.nn.SiLU()
         self.Conv1 = torch.nn.Conv2d(self.Channels,self.Channels,kernel_size=3,padding=1)
 
-        self.Spade2 = Spade(self.Channels,CondChannels)
+        self.Spade2 = Spade(self.Channels,CondChannels,NormGroups=self.NormGroups)
         self.TimeEmb1 = TimeScaleShift(TimeChannels,self.Channels)
 
         self.Silu2 = torch.nn.SiLU()
@@ -95,7 +97,7 @@ class TimeScaleShift(torch.nn.Module):
 
         Scale,Shift = torch.chunk(T,2,dim=1)
 
-        x = (x * (Scale + 1.0) + Shift)
+        x = (x * (Scale + 1.0)) + Shift
 
         return x
 
@@ -140,10 +142,10 @@ class TimeEmbedding(torch.nn.Module):
         return Embedding
 
 class Spade(torch.nn.Module):
-    def __init__(self,InChannels,CondChannels,HiddenChannels=128) -> None:
+    def __init__(self,InChannels,CondChannels,HiddenChannels=128,NormGroups = 32) -> None:
         super(Spade,self).__init__()
 
-        self.GroupNorm1 = torch.nn.GroupNorm(32,InChannels,affine=False)
+        self.GroupNorm1 = torch.nn.GroupNorm(NormGroups,InChannels,affine=False)
 
         self.Conv1 = torch.nn.Conv2d(CondChannels,HiddenChannels,kernel_size=3,padding=1)
         self.Relu1 = torch.nn.ReLU()
@@ -164,6 +166,6 @@ class Spade(torch.nn.Module):
         Gamma = self.ConvG(sx)
         Beta = self.ConvB(sx)
 
-        return (x * (Gamma + 1.0) + Beta)
+        return (x * (Gamma + 1.0)) + Beta
     
 
