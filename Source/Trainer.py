@@ -11,20 +11,19 @@ from Source.Utils import ShowMap,SaveMap
 from typing import Optional
 from torchvision.utils import make_grid
 
-
 import numpy as np
 
 class Trainer():
-    def __init__(self,args,Model : torch.nn.Module, Diffusor : Diffusor, SessionPath: Optional[str] = None) -> None:
+    def __init__(self,args,Model : torch.nn.Module, Diffusor : Diffusor, SessionPath: Optional[str] = None , Device = 'cpu') -> None:
 
-        self.Epoch = args.TrainEpoch
-        self.LogInterval = args.LogInterval
-        self.SaveInterval = args.SaveInterval
-        self.LearningRate = args.LearningRate
-        self.WeightDecay = args.WeightDecay
-        self.BatchSize = args.BatchSize
-        self.EmaRate = args.EmaRate
-        self.Device = args.Device
+        self.Epoch = args['TrainEpoch']
+        self.LogInterval = args['LogInterval']
+        self.SaveInterval = args['SaveInterval']
+        self.LearningRate = args['LearningRate']
+        self.WeightDecay = args['WeightDecay']
+        self.BatchSize = args['BatchSize']
+        self.EmaRate = args['EmaRate']
+        self.Device = Device
 
         if SessionPath != None:
             #Data Logging
@@ -85,7 +84,7 @@ class Trainer():
                     AveLoss = np.mean(LossList)
 
                     Time2 = time.time()
-                    Msg = 'Epoch: {} | Itteration: {} | Step: {}| average diffusion loss: {} | time(s):{} '.format(Epoch,i,Step,AveLoss,Time2-Time1)
+                    Msg = 'Epoch: {} | Itteration: {} | Step: {} | average diffusion loss: {} | time(s):{} '.format(Epoch,i,Step,AveLoss,Time2-Time1)
                     print(Msg)
                     self.Logger.info(Msg)
                     Time1 = time.time()

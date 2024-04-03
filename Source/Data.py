@@ -8,6 +8,41 @@ from Source.Utils import CreateMapCropped,ShowMap,TanNormalize,WriteJson
 from torch.utils.data import Dataset
 from PIL import Image
 
+# KOPPEN CLASSES BY COLOUR
+KoppenMask = [
+  (0.0,0.0,0.0,0.0),
+  (0.0,0.0,1.0,1.0),
+  (0.0,0.27450981736183167,0.37254902720451355,1.0),
+  (0.0,0.47058823704719543,1.0,1.0),
+  (0.0,0.4901960790157318,0.4901960790157318,1.0),
+  (0.0,1.0,1.0,1.0),
+  (0.19607843458652496,0.0,0.529411792755127,1.0),
+  (0.19607843458652496,0.5882353186607361,0.19607843458652496,1.0),
+  (0.19607843458652496,0.7843137383460999,0.0,1.0),
+  (0.21568627655506134,0.7843137383460999,1.0,1.0),
+  (0.27450981736183167,0.6666666865348816,0.9803921580314636,1.0),
+  (0.29411765933036804,0.3137255012989044,0.7019608020782471,1.0),
+  (0.3490196168422699,0.47058823704719543,0.8627451062202454,1.0),
+  (0.3921568691730499,0.7843137383460999,0.3921568691730499,1.0),
+  (0.3921568691730499,1.0,0.3137255012989044,1.0),
+  (0.4000000059604645,0.4000000059604645,0.4000000059604645,1.0),
+  (0.5882353186607361,0.19607843458652496,0.5882353186607361,1.0),
+  (0.5882353186607361,0.3921568691730499,0.5882353186607361,1.0),
+  (0.5882353186607361,0.5882353186607361,0.0,1.0),
+  (0.5882353186607361,1.0,0.5882353186607361,1.0),
+  (0.6666666865348816,0.686274528503418,1.0,1.0),
+  (0.6980392336845398,0.6980392336845398,0.6980392336845398,1.0),
+  (0.7843137383460999,0.0,0.7843137383460999,1.0),
+  (0.7843137383460999,0.7843137383460999,0.0,1.0),
+  (0.7843137383460999,1.0,0.3137255012989044,1.0),
+  (0.9607843160629272,0.6470588445663452,0.0,1.0),
+  (1.0,0.0,0.0,1.0),
+  (1.0,0.0,1.0,1.0),
+  (1.0,0.5882353186607361,0.5882353186607361,1.0),
+  (1.0,0.8627451062202454,0.3921568691730499,1.0),
+  (1.0,1.0,0.0,1.0)
+]
+
 class Map():
     def __init__(self,Path:str,Mode:str,Sample,Size:tuple) -> None:
 
@@ -17,36 +52,25 @@ class Map():
         self.Size = Size
 
         self.MapData = self.LoadMap()
-
-    def ConvertOneHot(self,SegClassCount):
-
-        FMap = torch.flatten(self.MapData,1,2)
-        Unique , Indexed = torch.unique(FMap,return_inverse=True,dim=1)
-
-        FoundLabels = Unique.shape[1]
-        
-        assert FoundLabels <= SegClassCount, "Segmentation classes found exeeded expected amount of classes."
-
-        IndexedMap = torch.reshape(Indexed,(self.Size[1],self.Size[0]))
-        OneHotMap = torch.nn.functional.one_hot(IndexedMap,SegClassCount).permute(2,0,1)
-
-        return Unique , OneHotMap 
     
     def ConvertKoppen(self):
 
         assert self.Mode == 'RGBA'
         assert self.Sample == Image.Resampling.NEAREST
 
-        KoppenDict = {
-            "Water": [0.0,0.0,0.0,0.0],
-            } #koppen rgb values and its climates
+        Mapping = {tuple(c): t for c, t in zip(KoppenMask, range(len(KoppenMask)))}
 
-        #Convert to onehot
+        Mask = torch.zeros((self.Size[1],self.Size[0]),dtype=torch.int64)
 
+        for Colour in Mapping:
+
+            IdMap = (self.MapData == torch.tensor(Colour,dtype=torch.float32)[:,None,None])
+            validx = (IdMap.sum(0)==4) 
+            Mask[validx] = Mapping[Colour]
         
-        #TODO: implement KoppenMap convertion to onehot
-        pass
-
+        OneHotMap = torch.nn.functional.one_hot(Mask,len(KoppenMask)).permute(2,0,1)
+        return OneHotMap
+        
     def LoadMap(self) -> torch.tensor:
         Map = CreateMapCropped(self.Path,self.Size,self.Mode,Resample=self.Sample)
         Map = torch.tensor(Map).permute(2, 0, 1)
@@ -61,21 +85,18 @@ class Map():
 class MapDataSet(Dataset):
     def __init__(self,args,InputMap:Map,OutputMap:Map,SessionPath:str) -> None:
 
-        self.DataDropRate = args.DataDropRate
+        self.DataDropRate = args['DataDropRate']
 
-        self.DatasetImageSize = args.DataImageSize
-        self.ImageSize = args.ImageSize
+        self.DatasetImageSize = args['DataImageSize']
+        self.ImageSize = args['ImageSize']
 
         #get input map
-        LabelList, self.InputMap = InputMap.ConvertOneHot(args.ConditionalClasses)
+        self.InputMap = InputMap.ConvertKoppen()
 
         #get output maps
         self.OutputMap = TanNormalize(OutputMap.ReturnMapdata())
 
         assert InputMap.Size == self.DatasetImageSize and OutputMap.Size == self.DatasetImageSize 
-
-        #Write found LabelValues to Json
-        WriteJson(SessionPath,"SegmentationClasses",torch.transpose(LabelList,0,1).tolist())
 
         self.PositionList, self.ListSize = self.GeneratePositionVector()
     

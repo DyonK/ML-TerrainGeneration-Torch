@@ -1,19 +1,23 @@
 import torch
+import math
 
 import numpy as np
 
 from Source.Utils import TanReNormalize
 
 class Diffusor():
-    def __init__(self,args) -> None:
+    def __init__(self,args,Device='cpu') -> None:
 
-        self.Timesteps = args.TimeSteps
-        self.ImageSize = args.ImageSize
+        self.Timesteps = args['TimeSteps']
+        self.ImageSize = args['ImageSize']
+        self.NoiseSchedule = args['NoiseSchedule']
 
-        self.Device = args.Device
+        self.Device = Device
 
-        if args.NoiseSchedule == 'Linear': #TODO: cosine schedule
+        if self.NoiseSchedule == 'Linear': 
             self.Beta = self.LinearSchedule().to(self.Device)
+        elif self.NoiseSchedule == 'Cosine':
+            self.Beta = self.CosineSchedule().to(self.Device)
         else:
             raise NotImplementedError()
         
@@ -28,6 +32,14 @@ class Diffusor():
     
     def LinearSchedule(self,BetaStart = 1e-4,BetaEnd= 0.02):
         return torch.linspace(BetaStart,BetaEnd,self.Timesteps)
+    
+    def CosineSchedule(self,S = 0.008):
+        steps = self.Timesteps+1
+        X = torch.linspace(0,self.Timesteps,steps)
+        AlphaHat = torch.cos((X/self.Timesteps)+S / (1+S)* math.pi * .5) ** 2
+        AlphaHat = AlphaHat / AlphaHat[0]
+        Beta = 1 - (AlphaHat[1:] / AlphaHat[:-1])
+        return torch.clamp(Beta,0.0001,0.9999)
 
     def AddNoise(self,X,T):
         AlphaSquare = torch.sqrt(torch.gather(self.AlphaHat,0,index=T))[:,None,None,None]
@@ -50,7 +62,7 @@ class Diffusor():
 
                 PredNoise = Model(X,T,Cond)
 
-                if CFGscale > 0.0:
+                if CFGscale > 1.0:
                     PredNoiseCFG = Model(X,T,torch.zeros_like(Cond))
                     PredNoise = torch.lerp(PredNoiseCFG,PredNoise,CFGscale)
 
@@ -63,8 +75,6 @@ class Diffusor():
                     Noise = torch.zeros_like(X)
                 else:
                     Noise = torch.randn_like(X)
-
-                #TODO: Clean up sampling code
 
                 X0 = torch.sqrt(1.0/Alphahat) * X - torch.sqrt(1.0 / Alphahat -1.0) * PredNoise
                 X0 = X0.clamp(-1,1)

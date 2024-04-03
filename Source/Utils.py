@@ -7,10 +7,15 @@ from PIL import Image
 
 Image.MAX_IMAGE_PIXELS = 1000000000000
 
-def WriteJson(Path: str, Name: str ,Data: dict):
+def WriteJson(Path: str, Name: str ,Data: dict)->None:
     Path = os.path.abspath(Path)
     with open(os.path.join(Path,Name + ".json"),'w') as f:
         json.dump(Data,f,indent=2)
+
+def LoadJson(Path:str) -> dict:
+    Path = os.path.abspath(Path)
+    with open(Path,'r') as f:
+        return json.load(f)
 
 def CreateMap(Path: str, Mode) -> np.array:
     Map = Image.open(Path).convert(Mode)
