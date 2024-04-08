@@ -58,10 +58,10 @@ def main():
     Parser.add_argument('--DataDir',            default='Data',            help='Which directory the training data is stored in')
     Parser.add_argument('--Device',             default='cuda',            help='which device to run project on')
 
-    # learning args
+    # learning args 
     Parser.add_argument('--BatchSize',          default= 1,                type=int)
     Parser.add_argument('--LearningRate',       default= 3e-5,             type=float)
-    Parser.add_argument('--TrainEpoch',         default= 15,                type=int)
+    Parser.add_argument('--TrainEpoch',         default= 40,                type=int)
     Parser.add_argument('--WeightDecay',        default= 0.00,             type=float)
     Parser.add_argument('--EmaRate',            default= 0.995,            type=float)
     Parser.add_argument('--DataDropRate',       default= 0.2,              type=float)
@@ -85,11 +85,6 @@ def main():
 
     if args['ModelType'] not in ModelTypes:
         raise ValueError("Please select valid modeltype: {}".format(ModelTypes))
-    
-    ScheduleTypes = ['Linear','Cosine']
-
-    if args['NoiseSchedule'] not in ScheduleTypes:
-        raise ValueError("Please select valid NoiseSchedule: {}".format(ModelTypes))
     
     CurrentPath , DataPath , OutputPath = PrepareFolders(args)
 

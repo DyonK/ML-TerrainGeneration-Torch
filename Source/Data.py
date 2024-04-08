@@ -4,7 +4,7 @@ import random
 import numpy as np
 import torchvision.transforms.functional as TF
 
-from Source.Utils import CreateMapCropped,ShowMap,TanNormalize,WriteJson
+from Source.Utils import CreateMapCropped,ShowMap,TanNormalize
 from torch.utils.data import Dataset
 from PIL import Image
 
@@ -53,7 +53,7 @@ class Map():
 
         self.MapData = self.LoadMap()
     
-    def ConvertKoppen(self):
+    def ConvertKoppen(self) -> torch.tensor:
 
         assert self.Mode == 'RGBA'
         assert self.Sample == Image.Resampling.NEAREST
