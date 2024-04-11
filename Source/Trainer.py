@@ -7,7 +7,7 @@ import logging
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from Source.Diffusion import Diffusor
-from Source.Utils import ShowMap,SaveMap
+from Source.Utils import ShowMap,SaveMap,ImgTorchToNumpy
 from typing import Optional
 from torchvision.utils import make_grid
 
@@ -94,24 +94,12 @@ class Trainer():
                 if Step % self.SaveInterval == 0 and self.SessionPath != None:
                     
                     self.SaveModel(str(Step))
-
-                    SampleCond = next(iter(Dataset))[0]
-                    ModelGrid = self.SampleLog(self.Model,self.BatchSize,SampleCond,"Model_{}".format(Step))
-                    EmaGrid = self.SampleLog(self.EmaModel,self.BatchSize,SampleCond,"EmaModel_{}".format(Step))
-
-                    self.Board.add_image("ModelTrainSamples",ModelGrid,dataformats='HWC',global_step=Step)
-                    self.Board.add_image("EmaModelTrainSamples",EmaGrid,dataformats='HWC',global_step=Step)
+                    self.CreateTrainSamples(Dataset,Step)
         
         if self.SavePath != None:
             self.SaveModel('Final')
+            self.CreateTrainSamples(Dataset,Step)
             self.Board.close()
-
-            SampleCond = next(iter(Dataset))[0]
-            ModelGrid = self.SampleLog(self.Model,self.BatchSize,SampleCond,"Model_Final")
-            EmaGrid = self.SampleLog(self.EmaModel,self.BatchSize,SampleCond,"EmaModel_Final")
-
-            self.Board.add_image("ModelTrainSamples",ModelGrid,dataformats='HWC',global_step=Step)
-            self.Board.add_image("EmaModelTrainSamples",EmaGrid,dataformats='HWC',global_step=Step)
 
     def TrainStep(self,X,Y,Cond,T) -> float:
 
@@ -132,15 +120,25 @@ class Trainer():
     def ReturnEmaModel(self):
         return self.EmaModel
     
+    def CreateTrainSamples(self,Dataset:DataLoader,Step:int)->None:
+
+        SampleCond = next(iter(Dataset))[0]
+        ModelGrid = self.SampleLog(self.Model,self.BatchSize,SampleCond,"Model_{}".format(Step))
+        EmaGrid = self.SampleLog(self.EmaModel,self.BatchSize,SampleCond,"EmaModel_{}".format(Step))
+
+        self.Board.add_image("ModelTrainSamples",ModelGrid,dataformats='HWC',global_step=Step)
+        self.Board.add_image("EmaModelTrainSamples",EmaGrid,dataformats='HWC',global_step=Step)
+
+    
     def SampleLog(self,Model,N,Cond, Indicator:str):
 
         assert self.SessionPath != None
 
         self.Logger.info('Start Sampling Images for Logging')
 
-        SampledImages = self.Diffusor.SampleImage(Model,N,Cond).to('cpu')
+        SampledImages = self.Diffusor.SampleImage(Model,N,Cond)
 
-        SampleGrid = make_grid(SampledImages).permute(1,2,0).numpy()
+        SampleGrid = ImgTorchToNumpy(make_grid(SampledImages))
 
         SamplePath = os.path.join(self.SamplePath,'{}.png'.format(Indicator))
         SaveMap(SampleGrid,SamplePath)

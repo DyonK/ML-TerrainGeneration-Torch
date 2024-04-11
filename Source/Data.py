@@ -4,7 +4,7 @@ import random
 import numpy as np
 import torchvision.transforms.functional as TF
 
-from Source.Utils import CreateMapCropped,ShowMap,TanNormalize
+from Source.Utils import CreateMapCropped,ShowMap,TanNormalize,ImgTorchToNumpy
 from torch.utils.data import Dataset
 from PIL import Image
 
@@ -80,7 +80,7 @@ class Map():
         return self.MapData
     
     def ReturnMapNumpy(self) -> np.array:
-        return self.MapData.permute(1,2,0).numpy()
+        return ImgTorchToNumpy(self.MapData)
 
 class MapDataSet(Dataset):
     def __init__(self,args,InputMap:Map,OutputMap:Map,SessionPath:str) -> None:

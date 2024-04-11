@@ -1,5 +1,7 @@
 import json
 import os
+import torch
+import torchvision
 
 import numpy as np
 
@@ -29,12 +31,12 @@ def CreateMapCropped(Path: str, Size: tuple, Mode: str, Resample=Image.Resamplin
     Map /= np.max(Map)
     return Map
 
-def ShowMap(Map: np.array):
-    Img = Image.fromarray((Map * 255).astype(np.uint8))
+def ShowMap(Map: np.array) -> None:
+    Img = NumpyToPil(Map)
     Img.show()
 
-def SaveMap(Map: np.array, Path: str):
-    img = Image.fromarray((Map * 255).astype(np.uint8))
+def SaveMap(Map: np.array, Path: str) -> None:
+    img = NumpyToPil(Map)
     img.save(Path)
 
 def TanNormalize(X):
@@ -42,3 +44,17 @@ def TanNormalize(X):
 
 def TanReNormalize(X):
     return (X+1)/2.0
+
+def ImgTorchToNumpy(X) -> np.array:
+    return X.permute(1,2,0).numpy()
+
+def NumpyToPil(X) -> Image.Image:
+    return Image.fromarray((X * 255).astype(np.uint8))
+
+def SaveVideo(Path:str, X:list) ->None:
+
+    VideoTensor = torch.squeeze(torch.stack(X))
+    VideoTensor = VideoTensor.permute(0,2,3,1)
+    VideoTensor = (VideoTensor * 255).to(dtype=torch.uint8)
+
+    torchvision.io.write_video(Path,VideoTensor,60,video_codec='libx264',options={"b":"10000000"})

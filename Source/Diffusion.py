@@ -48,11 +48,13 @@ class Diffusor():
 
         return AlphaSquare * X + AlphaSquareMin * e, e
     
-    def SampleImage(self,Model :torch.nn.Module,N: int, Cond, CFGscale = 3.0):
+    def SampleImage(self,Model :torch.nn.Module,N: int, Cond, CFGscale = 3.0,ReturnSteps = False):
 
         Model.eval()
 
         Cond = Cond.to(self.Device)
+
+        Steps = []
 
         with torch.no_grad():
             X = torch.randn((N,3,self.ImageSize[1],self.ImageSize[0])).to(self.Device)
@@ -87,12 +89,18 @@ class Diffusor():
                 variance = Beta * (1.0 - Alphahatprev) / (1.0 - Alphahat)
                 logvariance = torch.log(torch.maximum(variance,torch.tensor(1e-20))) 
                 X = mean + torch.exp(logvariance * 0.5) * Noise
+
+                if ReturnSteps:
+                    Step = TanReNormalize(X.clamp(-1,1)).to('cpu')
+                    Steps.append(Step)
         
-        X.clamp(-1,1)
-        X = TanReNormalize(X)
+        X = TanReNormalize(X.clamp(-1,1)).to('cpu')
         Model.train()
 
-        return X
+        if ReturnSteps == False:
+            return X
+        else:
+            return X , Steps
         
         
 
