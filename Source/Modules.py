@@ -169,3 +169,27 @@ class Spade(torch.nn.Module):
         return (x * (Gamma + 1.0)) + Beta
     
 
+class QKVAttention(torch.nn.Module):
+    def __init__(self,InChannels,ChannelsPerHead=64) -> None:
+        super(QKVAttention,self).__init__()
+    
+        self.Heads = InChannels // ChannelsPerHead
+
+        self.Norm = torch.nn.GroupNorm(32,InChannels)
+        self.Conv1d = torch.nn.Conv1d(InChannels,InChannels,1)
+
+        self.Attention = torch.nn.MultiheadAttention(InChannels,self.Heads,batch_first=True)
+
+        self.OutConv1d = torch.nn.Conv1d(InChannels,InChannels,1)
+
+    def forward(self,x):
+
+        Bs,Ch,*Size = x.shape
+
+        x = x.reshape(Bs,Ch,-1)
+
+        QKV = self.Conv1d(self.Norm(x)).swapaxes(1,2)
+        Att,_ = self.Attention(QKV,QKV,QKV,need_weights=False)
+        Att = self.OutConv1d(Att.swapaxes(2,1))
+
+        return (x + Att).reshape(Bs,Ch,*Size)

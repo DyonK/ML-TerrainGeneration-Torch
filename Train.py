@@ -60,22 +60,22 @@ def main():
 
     # learning args 
     Parser.add_argument('--BatchSize',          default= 1,                type=int)
-    Parser.add_argument('--LearningRate',       default= 3e-5,             type=float)
+    Parser.add_argument('--LearningRate',       default= 1e-4,             type=float)
     Parser.add_argument('--TrainEpoch',         default= 40,                type=int)
     Parser.add_argument('--WeightDecay',        default= 0.00,             type=float)
     Parser.add_argument('--EmaRate',            default= 0.995,            type=float)
     Parser.add_argument('--DataDropRate',       default= 0.2,              type=float)
-    Parser.add_argument('--DataImageSize',      default= (1024,512),        type=tuple)
+    Parser.add_argument('--DataImageSize',      default= (512,256),        type=tuple)
     Parser.add_argument('--LogInterval',        default= 1024,             type=int)
     Parser.add_argument('--SaveInterval',       default= 1024 * 5,             type=int)
-
+ 
     # diffusion args
     Parser.add_argument('--TimeSteps',          default= 1000,             type=int)
-    Parser.add_argument('--NoiseSchedule',      default= 'Linear',         type=str)
+    Parser.add_argument('--NoiseSchedule',      default= 'Cosine',         type=str)
 
     #Model args
     Parser.add_argument('--ModelType',          default='Unet',            type=str)
-    Parser.add_argument('--ImageSize',          default= (1024,512),        type=tuple)
+    Parser.add_argument('--ImageSize',          default= (512,256),        type=tuple)
     Parser.add_argument('--ConditionalClasses', default= 31,               type=int)
     Parser.add_argument('--TimeDims',           default= 256,              type=int)
 
@@ -93,9 +93,9 @@ def main():
     #Data
     InputMap = Map(os.path.join(DataPath,"Köppen-Geiger_Climate_Classification_Map_(1980–2016)_no_borders.png"),'RGBA',Image.Resampling.NEAREST,args['DataImageSize'])
     OutputMap = Map(os.path.join(DataPath,"land_shallow_topo_2011_8192.jpg"),'RGB',Image.Resampling.LANCZOS,args['DataImageSize'])
-    DataSet = MapDataSet(args,InputMap,OutputMap,CurrentPath)
+    DataSet = MapDataSet(args,InputMap,OutputMap)
     DataIterator = DataLoader(DataSet,batch_size=args['BatchSize'],shuffle=True)
-
+ 
     # Model and Diffusor
     if args['ModelType'] == 'Unet':
         Model = Unet(args).to(args['Device'])

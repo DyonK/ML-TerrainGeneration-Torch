@@ -83,7 +83,7 @@ class Map():
         return ImgTorchToNumpy(self.MapData)
 
 class MapDataSet(Dataset):
-    def __init__(self,args,InputMap:Map,OutputMap:Map,SessionPath:str) -> None:
+    def __init__(self,args,InputMap:Map,OutputMap:Map) -> None:
 
         self.DataDropRate = args['DataDropRate']
 

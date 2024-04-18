@@ -23,7 +23,10 @@ class Trainer():
         self.WeightDecay = args['WeightDecay']
         self.BatchSize = args['BatchSize']
         self.EmaRate = args['EmaRate']
+
         self.Device = Device
+        self.Model = Model
+        self.Diffusor = Diffusor
 
         if SessionPath != None:
             #Data Logging
@@ -45,8 +48,6 @@ class Trainer():
         else:
             self.SessionPath = None
 
-        self.Model = Model
-        self.Diffusor = Diffusor
 
         self.Optimizer = torch.optim.AdamW(Model.parameters(),lr=self.LearningRate,weight_decay=self.WeightDecay)
         self.Criterion = torch.nn.MSELoss()
