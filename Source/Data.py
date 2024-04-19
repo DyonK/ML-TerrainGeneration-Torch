@@ -2,9 +2,9 @@ import torch
 import random
 
 import numpy as np
-import torchvision.transforms.functional as TF
+import torchvision.transforms.v2.functional as TF
 
-from Source.Utils import CreateMapCropped,ShowMap,TanNormalize,ImgTorchToNumpy
+from Source.Utils import CreateMapCropped,TanNormalize,ImgTorchToNumpy,TanReNormalize,ShowMap
 from torch.utils.data import Dataset
 from PIL import Image
 
@@ -107,17 +107,18 @@ class MapDataSet(Dataset):
 
         Position = self.PositionList[idx]
 
-        X = self.CropAndRoll(self.InputMap,self.ImageSize,Position)
-        Y = self.CropAndRoll(self.OutputMap,self.ImageSize,Position)
+        Input = self.InputMap
+        Output = self.OutputMap
 
-        if random.random() > 0.5:
-            X = TF.hflip(X)
-            Y = TF.hflip(Y)
+        #Flip data maps for improved zoom sampling
+        Input,Output = self.RandomFlip(Input,Output)
 
-        if random.random() > 0.5:
-            X = TF.vflip(X)
-            Y = TF.vflip(Y)
+        ZoomScale = random.random()
+        X = self.CropRollZoom(Input,self.ImageSize,Position,ZoomScale,Interpolation=TF.InterpolationMode.NEAREST)
+        Y = self.CropRollZoom(Output,self.ImageSize,Position,ZoomScale,Interpolation=TF.InterpolationMode.NEAREST)
 
+        X,Y = self.RandomFlip(X,Y)
+        
         if not random.random() > self.DataDropRate:
             X = torch.zeros_like(X)
 
@@ -145,3 +146,42 @@ class MapDataSet(Dataset):
         Y,X = Position
 
         return torch.roll(Map,-Y,dims=2)[:,X:X+Size[1],0:Size[0]]
+    
+    #Zoom function based on wrapping crop
+    def CropRollZoom(self,Map,Size,Position,ZoomScale,Interpolation):
+
+        Y,X = Position
+        MaxY,MaxX = self.DatasetImageSize
+        MinY,MinX = Size
+
+        MaxX -= X
+        MaxX = max(MaxX,MinX)
+        MaxLocalScale = MaxX / MinX
+        
+        LocalScale = 1.0 + ZoomScale * (MaxLocalScale - 1.0)
+        
+        ZoomY = int(LocalScale * MinY)
+        ZoomX = int(LocalScale * MinX)
+
+        ZoomSize = (ZoomY,ZoomX)
+
+        Map = self.CropAndRoll(Map,ZoomSize,Position)
+        Map = TF.resize(Map,(Size[1],Size[0]),interpolation=Interpolation)
+
+        return Map
+    
+    def RandomFlip(self,Map1,Map2):
+
+        if random.random() > 0.5: 
+            Map1 = TF.hflip(Map1)
+            Map2 = TF.hflip(Map2)
+
+        if random.random() > 0.5:
+            Map1 = TF.vflip(Map1)
+            Map2 = TF.vflip(Map2)
+
+        return Map1,Map2
+
+
+
+
