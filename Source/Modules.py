@@ -176,7 +176,7 @@ class QKVAttention(torch.nn.Module):
         self.Heads = InChannels // ChannelsPerHead
 
         self.Norm = torch.nn.GroupNorm(32,InChannels)
-        self.Conv1d = torch.nn.Conv1d(InChannels,InChannels,1)
+        self.Conv1d = torch.nn.Conv1d(InChannels,InChannels*3,1)
 
         self.Attention = torch.nn.MultiheadAttention(InChannels,self.Heads,batch_first=True)
 
@@ -189,7 +189,8 @@ class QKVAttention(torch.nn.Module):
         x = x.reshape(Bs,Ch,-1)
 
         QKV = self.Conv1d(self.Norm(x)).swapaxes(1,2)
-        Att,_ = self.Attention(QKV,QKV,QKV,need_weights=False)
+        Q,K,V = torch.chunk(QKV,3,dim=2)
+        Att,_ = self.Attention(Q,K,V,need_weights=False)
         Att = self.OutConv1d(Att.swapaxes(2,1))
 
         return (x + Att).reshape(Bs,Ch,*Size)

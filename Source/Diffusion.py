@@ -48,7 +48,7 @@ class Diffusor():
 
         return AlphaSquare * X + AlphaSquareMin * e, e
     
-    def SampleImage(self,Model :torch.nn.Module,N: int, Cond, CFGscale = 3.0,ReturnSteps = False):
+    def SampleImage(self,Model :torch.nn.Module,N: int, Cond, CFGscale = 2.0,ReturnSteps = False):
 
         Model.eval()
 
@@ -64,7 +64,7 @@ class Diffusor():
 
                 PredNoise = Model(X,T,Cond)
 
-                if CFGscale > 1.0:
+                if CFGscale > 0.0:
                     PredNoiseCFG = Model(X,T,torch.zeros_like(Cond))
                     PredNoise = torch.lerp(PredNoiseCFG,PredNoise,CFGscale)
 
@@ -93,8 +93,9 @@ class Diffusor():
                 if ReturnSteps:
                     Step = TanReNormalize(X.clamp(-1,1)).to('cpu')
                     Steps.append(Step)
-        
+
         X = TanReNormalize(X.clamp(-1,1)).to('cpu')
+
         Model.train()
 
         if ReturnSteps == False:
