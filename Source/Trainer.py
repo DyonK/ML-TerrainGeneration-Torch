@@ -3,6 +3,7 @@ import time
 import copy
 import os
 import logging
+import random
 
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
@@ -23,6 +24,8 @@ class Trainer():
         self.WeightDecay = args['WeightDecay']
         self.BatchSize = args['BatchSize']
         self.EmaRate = args['EmaRate']
+        self.DataDropRate = args['DataDropRate']
+        self.DataDropDelay = args['DataDropDelay']
 
         self.Device = Device
         self.Model = Model
@@ -60,12 +63,14 @@ class Trainer():
         DataSetLength = len(Dataset)
 
         LossList = []
+        Step = 0
 
         for Epoch in range(0,self.Epoch):
 
             for i,(Cond,OutImage) in enumerate(Dataset,0):
 
-                Step = Epoch * DataSetLength + i
+                if Step > self.DataDropDelay and not random.random() > self.DataDropRate:
+                    Cond = torch.zeros_like(Cond)
 
                 Cond = Cond.to(self.Device)
                 OutImage = OutImage.to(self.Device)
@@ -94,8 +99,11 @@ class Trainer():
 
                 if Step % self.SaveInterval == 0 and self.SessionPath != None:
                     
+                    self.Board.flush()
                     self.SaveModel(str(Step))
                     self.CreateTrainSamples(Dataset,Step)
+
+                Step += 1
         
         if self.SavePath != None:
             self.SaveModel('Final')
@@ -129,7 +137,6 @@ class Trainer():
 
         self.Board.add_image("ModelTrainSamples",ModelGrid,dataformats='HWC',global_step=Step)
         self.Board.add_image("EmaModelTrainSamples",EmaGrid,dataformats='HWC',global_step=Step)
-
     
     def SampleLog(self,Model,N,Cond, Indicator:str):
 
@@ -162,3 +169,5 @@ class Trainer():
 
         OptPath = os.path.join(self.SavePath,'Optim_{}.ckpt.pt'.format(Indicator))
         torch.save(self.Optimizer.state_dict(),OptPath)
+
+

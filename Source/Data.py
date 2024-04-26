@@ -85,10 +85,9 @@ class Map():
 class MapDataSet(Dataset):
     def __init__(self,args,InputMap:Map,OutputMap:Map) -> None:
 
-        self.DataDropRate = args['DataDropRate']
-
         self.DatasetImageSize = args['DataImageSize']
         self.ImageSize = args['ImageSize']
+        self.DataSpacing = args['DataSpacing']
 
         #get input map
         self.InputMap = InputMap.ConvertKoppen()
@@ -118,9 +117,6 @@ class MapDataSet(Dataset):
         Y = self.CropRollZoom(Output,self.ImageSize,Position,ZoomScale,Interpolation=TF.InterpolationMode.NEAREST)
 
         X,Y = self.RandomFlip(X,Y)
-        
-        if not random.random() > self.DataDropRate:
-            X = torch.zeros_like(X)
 
         return X,Y
 
@@ -138,7 +134,9 @@ class MapDataSet(Dataset):
 
         Indices = Indices.reshape(NSize,2)
 
-        return Indices, NSize
+        Indices = Indices[::self.DataSpacing,:]
+
+        return Indices, len(Indices)
     
     #Custom Crop function that wraps horizontal dim
     def CropAndRoll(self,Map,Size,Position):
