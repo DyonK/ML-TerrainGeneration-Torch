@@ -4,6 +4,7 @@ import copy
 import os
 import logging
 import random
+import math
 
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
@@ -26,7 +27,9 @@ class Trainer():
         self.EmaRate = args['EmaRate']
         self.DataDropRate = args['DataDropRate']
         self.DataDropDelay = args['DataDropDelay']
-
+        self.LRDecay = args['LRDecay']
+        self.Lambda = args['Lambda']
+       
         self.Device = Device
         self.Model = Model
         self.Diffusor = Diffusor
@@ -53,6 +56,7 @@ class Trainer():
 
 
         self.Optimizer = torch.optim.AdamW(Model.parameters(),lr=self.LearningRate,weight_decay=self.WeightDecay)
+        self.Scheduler = torch.optim.lr_scheduler.ExponentialLR(self.Optimizer,self.LRDecay)
         self.Criterion = torch.nn.MSELoss()
 
         self.EmaModel = copy.deepcopy(Model).eval().requires_grad_(False)
@@ -69,8 +73,9 @@ class Trainer():
 
             for i,(Cond,OutImage) in enumerate(Dataset,0):
 
-                if Step > self.DataDropDelay and not random.random() > self.DataDropRate:
-                    Cond = torch.zeros_like(Cond)
+                if Step > self.DataDropDelay:
+                    Mask = torch.rand([self.BatchSize]) > self.DataDropRate
+                    Cond = Cond * Mask.int()[:,None,None,None]
 
                 Cond = Cond.to(self.Device)
                 OutImage = OutImage.to(self.Device)
@@ -78,12 +83,14 @@ class Trainer():
                 T = self.Diffusor.RandomTimeStep(self.BatchSize).to(self.Device)
                 X,Noise = self.Diffusor.AddNoise(OutImage,T)
                 
-                Loss = self.TrainStep(X,Noise,Cond,T)
+                Loss,Mse,Vlb = self.TrainStep(X,Noise,Cond,T,OutImage)
                 LossList.append(Loss)
 
                 if self.SessionPath != None:
-                        self.Board.add_scalar("MSE", Loss, global_step=Step)
-                        self.Logger.info("MSE:{} | Step:{} | Epoch:{} | Itteration:{}".format(Loss,Step,Epoch,i))
+                    self.Board.add_scalar("Hybrid", Loss, global_step=Step)
+                    self.Board.add_scalar("MSE", Mse, global_step=Step)
+                    self.Board.add_scalar("Vlb", Vlb, global_step=Step)
+                    self.Logger.info("MSE:{} | VLB:{} | Loss:{} | Step:{} | Epoch:{} | Itteration:{}".format(Mse,Vlb,Loss,Step,Epoch,i))
 
                 if i % self.LogInterval == 0:
 
@@ -104,27 +111,88 @@ class Trainer():
                     self.CreateTrainSamples(Dataset,Step)
 
                 Step += 1
+
+            self.Scheduler.step()
         
         if self.SavePath != None:
             self.SaveModel('Final')
             self.CreateTrainSamples(Dataset,Step)
             self.Board.close()
 
-    def TrainStep(self,X,Y,Cond,T) -> float:
+    def TrainStep(self,X,Y,Cond,T,X0) -> float:
 
         Output = self.Model(X,T,Cond)
+        Mean,Var = torch.chunk(Output,2,dim=1)
 
-        Loss = self.Criterion(Output,Y)
+        Mse = self.Criterion(Mean,Y)
+        Vlb = self.Lambda * self.KLLoss(Var,Mean.detach(),T,X,X0)
 
+        Loss = Mse + Vlb
+        
         self.Optimizer.zero_grad()
         Loss.backward()
         self.Optimizer.step()
-
+        
         #Exponential moving average model update
         for Weight,EmaWeight in zip(self.Model.parameters(),self.EmaModel.parameters()):
             EmaWeight.data = self.EmaRate * EmaWeight.data + (1.0-self.EmaRate) * Weight.data
 
-        return Loss.item()
+        return Loss.item(), Mse.item() ,Vlb.item()
+    
+    def KLLoss(self,Varience,Mean,T,X,X0):
+
+        TrueMean,TrueVar,TrueLogVar = self.Diffusor.postMeanVarience(X0,X,T)
+
+        PredMean,PredVar,PredLogVar = self.Diffusor.SampleMeanVarience(T,X,Mean,Varience,Clip=False)
+    
+        Kl = self.KLLossNormal(TrueMean,TrueLogVar,PredMean,PredLogVar) 
+        Kl = torch.mean(Kl,dim=[1,2,3]) / math.log(2.0)
+        
+        nll = -self.discretized_gaussian_log_likelihood(X0,means=PredMean,log_scales=0.5 * PredLogVar)
+        nll = torch.mean(nll,dim=[1,2,3]) / math.log(2.0)
+
+        Loss = torch.where((T==0),nll,Kl)
+
+        Loss = Loss.mean()
+
+        return Loss
+    
+    #-----------------
+    # """
+    # Helpers for various likelihood-based losses. These are ported from the original
+    # Ho et al. diffusion models codebase:
+    # https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/utils.py
+    # """
+
+
+    def KLLossNormal(self,TrueMean,TrueVar,PredMean,PredVar):
+        return 0.5 * (-1.0 + PredVar - TrueVar + torch.exp(TrueVar - PredVar) + ((TrueMean - PredMean) ** 2) * torch.exp(-PredVar))
+
+    def approx_standard_normal_cdf(self,x):
+        return 0.5 * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x,3) )))
+
+    def discretized_gaussian_log_likelihood(self,x, *, means, log_scales):
+    
+        assert x.shape == means.shape == log_scales.shape
+        centered_x = x - means
+        inv_stdv = torch.exp(-log_scales)
+        plus_in = inv_stdv * (centered_x + 1.0 / 255.0)
+        cdf_plus = self.approx_standard_normal_cdf(plus_in)
+        min_in = inv_stdv * (centered_x - 1.0 / 255.0)
+        cdf_min = self.approx_standard_normal_cdf(min_in)
+        log_cdf_plus = torch.log(cdf_plus.clamp(min=1e-12))
+        log_one_minus_cdf_min = torch.log((1.0 - cdf_min).clamp(min=1e-12))
+        cdf_delta = cdf_plus - cdf_min
+        log_probs = torch.where(
+            x < -0.999,
+            log_cdf_plus,
+            torch.where(x > 0.999, log_one_minus_cdf_min, torch.log(cdf_delta.clamp(min=1e-12))),
+        )
+        assert log_probs.shape == x.shape
+        return log_probs
+
+    # -------------------
+
     
     def ReturnEmaModel(self):
         return self.EmaModel

@@ -88,6 +88,7 @@ class MapDataSet(Dataset):
         self.DatasetImageSize = args['DataImageSize']
         self.ImageSize = args['ImageSize']
         self.DataSpacing = args['DataSpacing']
+        self.Zoom = args['DataZooming']
 
         #get input map
         self.InputMap = InputMap.ConvertKoppen()
@@ -109,12 +110,18 @@ class MapDataSet(Dataset):
         Input = self.InputMap
         Output = self.OutputMap
 
-        #Flip data maps for improved zoom sampling
-        Input,Output = self.RandomFlip(Input,Output)
+        if self.Zoom == True:
+            #Flip data maps for improved zoom sampling
+            if random.random() > 0.5: 
+                Input = TF.vflip(Input)
+                Output = TF.vflip(Output)
 
-        ZoomScale = random.random()
-        X = self.CropRollZoom(Input,self.ImageSize,Position,ZoomScale,Interpolation=TF.InterpolationMode.NEAREST)
-        Y = self.CropRollZoom(Output,self.ImageSize,Position,ZoomScale,Interpolation=TF.InterpolationMode.NEAREST)
+            ZoomScale = random.random()
+            X = self.CropRollZoom(Input,self.ImageSize,Position,ZoomScale,Interpolation=TF.InterpolationMode.NEAREST)
+            Y = self.CropRollZoom(Output,self.ImageSize,Position,ZoomScale,Interpolation=TF.InterpolationMode.NEAREST)
+        else:
+            X = self.CropAndRoll(Input,self.ImageSize,Position)
+            Y = self.CropAndRoll(Output,self.ImageSize,Position)
 
         X,Y = self.RandomFlip(X,Y)
 

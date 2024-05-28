@@ -53,7 +53,7 @@ def NumpyToPil(X) -> Image.Image:
 
 def SaveVideo(Path:str, X:list) ->None:
 
-    VideoTensor = torch.squeeze(torch.stack(X))
+    VideoTensor = torch.squeeze(X)
     VideoTensor = VideoTensor.permute(0,2,3,1)
     VideoTensor = (VideoTensor * 255).to(dtype=torch.uint8)
 
