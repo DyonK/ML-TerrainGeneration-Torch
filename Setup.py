@@ -8,13 +8,15 @@ import numpy as np
 def main():
 
     Parser = argparse.ArgumentParser()
-    Parser.add_argument('--Tolerance',    default= 0.05,  type=float)
+    Parser.add_argument('--Tolerance',    default= 0.06,  type=float)
+    Parser.add_argument('--KoppenPath',   default="Data/Köppen-Geiger_Climate_Classification_Map_(1980–2016)_no_borders.png" , type=str)
+    Parser.add_argument('--OutputPath',   default="Data/land_shallow_topo_8192.tif" , type=str)
     args = vars(Parser.parse_args())
 
-    InputMap = CreateMap("Data/Köppen-Geiger_Climate_Classification_Map_(1980–2016)_no_borders.png",'RGBA')
+    InputMap = CreateMap(args['KoppenPath'],'RGBA')
 
     Size = (InputMap.shape[1],InputMap.shape[0])
-    OutputMap = CreateMapCropped("Data/land_shallow_topo_2011_8192.jpg",Size,'RGB',Image.Resampling.LANCZOS)
+    OutputMap = CreateMapCropped(args['OutputPath'],Size,'RGB',Image.Resampling.LANCZOS)
 
     #InputLakes into Koppenmap
     WaterPixel = OutputMap[0][0]
@@ -23,10 +25,12 @@ def main():
     InputMap[Mask] = [0.,0.,0.,0.]
 
     #Make all water the same colour
-    Mask = np.all(InputMap == [0.,0.,0.,0.],axis=-1)
+    Mask = (InputMap[:,:,3] == 0.)
+    InputMap[Mask] = [0.,0.,0.,0.]
     OutputMap[Mask] = WaterPixel
 
     #Save
+    os.makedirs("Data",exist_ok=True)
     SaveMap(InputMap,"Data/InputMap.png")
     SaveMap(OutputMap,"Data/OutputMap.png")
 

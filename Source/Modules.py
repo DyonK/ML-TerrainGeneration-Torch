@@ -6,22 +6,33 @@ from typing import Optional
 from Source.Utils import ShowMap
 
 class EncodeBlock(torch.nn.Module):
-    def __init__(self,Channels,TimeChannels,NormGroups=32) -> None:
+    def __init__(self,Channels,OutChannels,TimeChannels,NormGroups=32,Attention=False) -> None:
         super(EncodeBlock,self).__init__()
 
         self.Channels = Channels
         self.NormGroups = NormGroups
-
+        self.OutChannels = OutChannels
+        self.Attention = Attention
+        
         self.Norm1 = torch.nn.GroupNorm(self.NormGroups,self.Channels)
 
         self.Silu1 = torch.nn.SiLU()
-        self.Conv1 = torch.nn.Conv2d(self.Channels,self.Channels,kernel_size=3,padding=1)
+        self.Conv1 = torch.nn.Conv2d(self.Channels,self.OutChannels,kernel_size=3,padding=1)
 
-        self.Norm2 = torch.nn.GroupNorm(self.NormGroups,self.Channels)
-        self.TimeEmb1 = TimeScaleShift(TimeChannels,self.Channels)
+        self.Norm2 = torch.nn.GroupNorm(self.NormGroups,self.OutChannels)
+        self.TimeEmb1 = TimeScaleShift(TimeChannels,self.OutChannels)
 
         self.Silu2 = torch.nn.SiLU()
-        self.Conv2 = torch.nn.Conv2d(self.Channels,self.Channels,kernel_size=3,padding=1)
+        self.Conv2 = torch.nn.Conv2d(self.OutChannels,self.OutChannels,kernel_size=3,padding=1)
+
+        if self.Channels == self.OutChannels:
+            self.Skip = torch.nn.Identity()
+        else:
+            self.Skip = torch.nn.Conv2d(self.Channels,self.OutChannels,1)
+
+        if self.Attention == True:
+            self.QKV = QKVAttention(self.OutChannels)
+
 
     def forward(self,x,T):
 
@@ -38,27 +49,40 @@ class EncodeBlock(torch.nn.Module):
         x = self.Silu2(x)
         x = self.Conv2(x)
 
-        x = x + skip
+        x = x + self.Skip(skip)
+
+        if self.Attention == True:
+            x = self.QKV(x)
 
         return x
 
 class DecodeBlock(torch.nn.Module):
-    def __init__(self,Channels,CondChannels,TimeChannels,NormGroups=32) -> None:
+    def __init__(self,Channels,OutChannels,CondChannels,TimeChannels,NormGroups=32,Attention=False) -> None:
         super(DecodeBlock,self).__init__()
 
         self.Channels = Channels
         self.NormGroups = NormGroups
+        self.OutChannels = OutChannels
+        self.Attention = Attention
 
         self.Spade1 = Spade(self.Channels,CondChannels,NormGroups=self.NormGroups)
 
         self.Silu1 = torch.nn.SiLU()
-        self.Conv1 = torch.nn.Conv2d(self.Channels,self.Channels,kernel_size=3,padding=1)
+        self.Conv1 = torch.nn.Conv2d(self.Channels,self.OutChannels,kernel_size=3,padding=1)
 
-        self.Spade2 = Spade(self.Channels,CondChannels,NormGroups=self.NormGroups)
-        self.TimeEmb1 = TimeScaleShift(TimeChannels,self.Channels)
+        self.Spade2 = Spade(self.OutChannels,CondChannels,NormGroups=self.NormGroups)
+        self.TimeEmb1 = TimeScaleShift(TimeChannels,self.OutChannels)
 
         self.Silu2 = torch.nn.SiLU()
-        self.Conv2 = torch.nn.Conv2d(self.Channels,self.Channels,kernel_size=3,padding=1)
+        self.Conv2 = torch.nn.Conv2d(self.OutChannels,self.OutChannels,kernel_size=3,padding=1)
+
+        if self.Channels == self.OutChannels:
+            self.Skip = torch.nn.Identity()
+        else:
+            self.Skip = torch.nn.Conv2d(self.Channels,self.OutChannels,1)
+
+        if self.Attention == True:
+            self.QKV = QKVAttention(self.OutChannels)
 
     def forward(self,x,Cond,T):
 
@@ -75,7 +99,10 @@ class DecodeBlock(torch.nn.Module):
         x = self.Silu2(x)
         x = self.Conv2(x)
 
-        x = x + skip
+        x = x + self.Skip(skip)
+
+        if self.Attention == True:
+            x = self.QKV(x)
 
         return x
 
@@ -158,7 +185,7 @@ class Spade(torch.nn.Module):
         x = self.GroupNorm1(x)
 
         NewSize = x.shape[2:]
-        Cond = torch.nn.functional.interpolate(Cond.float(),NewSize,mode='nearest')
+        Cond = torch.nn.functional.interpolate(Cond,NewSize,mode='nearest')
 
         sx = self.Conv1(Cond)
         sx = self.Relu1(sx)

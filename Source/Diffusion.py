@@ -64,7 +64,7 @@ class Diffusor():
         mean = coef1 * X0 + coef2* X
 
         var = Beta * (1.0 - Alphahatprev) / (1.0 - Alphahat)
-        logvar = torch.log(torch.maximum(var,torch.tensor(1e-20)))
+        logvar = torch.log(torch.maximum(var,torch.tensor(5e-5)))
 
         return mean,var,logvar
     

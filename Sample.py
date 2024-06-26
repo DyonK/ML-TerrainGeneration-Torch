@@ -32,20 +32,22 @@ def PrepareKoppenMap(Path:str,Size:tuple,Batches:int):
 def main():
     Parser = argparse.ArgumentParser()
     Parser.add_argument('--ModelDir',           default='ModelLogs',                              help='Folder in which trained models are stored')
-    Parser.add_argument('--ModelName',          default='Session-2024-05-28--13-03-45',           help='Name of session to use for sampling')
+    Parser.add_argument('--ModelName',          default='',                                       help='Name of session to use for sampling')
     Parser.add_argument('--ModelVersion',       default='Model_Ema_Final.ckpt.pt',                help='Which intermedial model to load. Defaults to final')
     Parser.add_argument('--Device',             default='cuda',                                   help='which device to run project on')
 
-    Parser.add_argument('--CFGScale',           default= 3.0,                       type = float, help='What CFGScale to use when sampling')
+    Parser.add_argument('--CFGScale',           default= 3.0,                      type = float, help='What CFGScale to use when sampling')
     Parser.add_argument('--SaveIntermediate',   default= False,                     type = bool,  help='Save intermediate steps into output folder')
     Parser.add_argument('--SaveVideo',          default= True,                      type = bool,  help='Save intermediate steps into  video format')
-    Parser.add_argument('--ImageSize',          default= (512,256),                 type = tuple)
+    Parser.add_argument('--ImageSize',          default= (512,256),                type = tuple)
     Parser.add_argument('--Samples',            default= 1,                         type = int)
     args = vars(Parser.parse_args())
 
     SessionPath = os.path.join("",args['ModelDir'],args['ModelName']) 
     InputDir = os.path.join("",'Input')
     OutDir = os.path.join("",'Output')
+    os.makedirs(OutDir,exist_ok=True)
+    os.makedirs(InputDir,exist_ok=True)
 
     if os.path.exists(SessionPath) == False or args['ModelName'] == '':
         raise ValueError("Model does not exist at {}".format(SessionPath))

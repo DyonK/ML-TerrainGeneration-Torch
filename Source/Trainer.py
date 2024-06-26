@@ -55,51 +55,55 @@ class Trainer():
             self.SessionPath = None
 
 
-        self.Optimizer = torch.optim.AdamW(Model.parameters(),lr=self.LearningRate,weight_decay=self.WeightDecay)
-        self.Scheduler = torch.optim.lr_scheduler.ExponentialLR(self.Optimizer,self.LRDecay)
-        self.Criterion = torch.nn.MSELoss()
+        self.Optimizer = torch.optim.AdamW(self.Model.parameters(),lr=self.LearningRate,weight_decay=self.WeightDecay)
 
+        self.Scheduler = torch.optim.lr_scheduler.MultiStepLR(self.Optimizer,[self.DataDropDelay],gamma=self.LRDecay)
+        self.Criterion = torch.nn.MSELoss()
+        
         self.EmaModel = copy.deepcopy(Model).eval().requires_grad_(False)
 
-    def TrainLoop(self,Dataset: DataLoader) -> None:
+    def TrainLoop(self,Dataset: DataLoader , ValDataset : DataLoader = None) -> None:
 
         Time1 = time.time()
-        DataSetLength = len(Dataset)
-
+        
         LossList = []
         Step = 0
+
+        if self.SessionPath != None:
+            self.Logger.info("--- Start Diffusion Training ---")
+            self.SaveGraph(Dataset)
 
         for Epoch in range(0,self.Epoch):
 
             for i,(Cond,OutImage) in enumerate(Dataset,0):
 
-                if Step > self.DataDropDelay:
-                    Mask = torch.rand([self.BatchSize]) > self.DataDropRate
-                    Cond = Cond * Mask.int()[:,None,None,None]
-
-                Cond = Cond.to(self.Device)
-                OutImage = OutImage.to(self.Device)
-
-                T = self.Diffusor.RandomTimeStep(self.BatchSize).to(self.Device)
-                X,Noise = self.Diffusor.AddNoise(OutImage,T)
+                Cond ,OutImage ,T ,X ,Noise = self.PrepData(Cond,OutImage,Step)
                 
                 Loss,Mse,Vlb = self.TrainStep(X,Noise,Cond,T,OutImage)
                 LossList.append(Loss)
 
                 if self.SessionPath != None:
-                    self.Board.add_scalar("Hybrid", Loss, global_step=Step)
-                    self.Board.add_scalar("MSE", Mse, global_step=Step)
-                    self.Board.add_scalar("Vlb", Vlb, global_step=Step)
+                    self.Board.add_scalar("Loss/Hybrid", Loss, global_step=Step)
+                    self.Board.add_scalar("Loss/MSE", Mse, global_step=Step)
+                    self.Board.add_scalar("Loss/Vlb", Vlb, global_step=Step)
                     self.Logger.info("MSE:{} | VLB:{} | Loss:{} | Step:{} | Epoch:{} | Itteration:{}".format(Mse,Vlb,Loss,Step,Epoch,i))
 
-                if i % self.LogInterval == 0:
+                if Step % self.LogInterval == 0:
 
                     AveLoss = np.mean(LossList)
 
                     Time2 = time.time()
                     Msg = 'Epoch: {} | Itteration: {} | Step: {} | average diffusion loss: {} | time(s):{} '.format(Epoch,i,Step,AveLoss,Time2-Time1)
                     print(Msg)
-                    self.Logger.info(Msg)
+
+                    if self.SessionPath != None:
+                        self.Logger.info(Msg)
+                        self.Board.add_histogram("LossHistrogram",np.array(LossList),Step)
+                        self.Board.add_scalar("Loss/MeanEpoch", AveLoss, global_step=Step)
+
+                        if ValDataset != None:
+                            self.ValidationLog(ValDataset,Step)
+                    
                     Time1 = time.time()
 
                     LossList.clear()
@@ -111,15 +115,39 @@ class Trainer():
                     self.CreateTrainSamples(Dataset,Step)
 
                 Step += 1
+                self.Scheduler.step()
 
-            self.Scheduler.step()
+            
         
         if self.SavePath != None:
             self.SaveModel('Final')
             self.CreateTrainSamples(Dataset,Step)
             self.Board.close()
 
+    def PrepData(self,Cond,OutImage,Step):
+
+        if Step > self.DataDropDelay:
+            Mask = torch.rand([self.BatchSize]) > self.DataDropRate
+            Cond = Cond * Mask.int()[:,None,None,None]
+
+        Cond = Cond.to(self.Device)
+        OutImage = OutImage.to(self.Device)
+
+        T = self.Diffusor.RandomTimeStep(self.BatchSize).to(self.Device)
+        X,Noise = self.Diffusor.AddNoise(OutImage,T)
+
+        return Cond, OutImage, T, X, Noise
+
+
     def TrainStep(self,X,Y,Cond,T,X0) -> float:
+
+        Loss,Mse,Vlb = self.ForwardStep(X,Y,Cond,T,X0)
+        
+        self.BackwardStep(Loss)
+
+        return Loss.item(), Mse.item() ,Vlb.item()
+    
+    def ForwardStep(self,X,Y,Cond,T,X0):
 
         Output = self.Model(X,T,Cond)
         Mean,Var = torch.chunk(Output,2,dim=1)
@@ -128,7 +156,11 @@ class Trainer():
         Vlb = self.Lambda * self.KLLoss(Var,Mean.detach(),T,X,X0)
 
         Loss = Mse + Vlb
-        
+
+        return Loss, Mse ,Vlb
+
+    def BackwardStep(self,Loss):
+
         self.Optimizer.zero_grad()
         Loss.backward()
         self.Optimizer.step()
@@ -136,8 +168,6 @@ class Trainer():
         #Exponential moving average model update
         for Weight,EmaWeight in zip(self.Model.parameters(),self.EmaModel.parameters()):
             EmaWeight.data = self.EmaRate * EmaWeight.data + (1.0-self.EmaRate) * Weight.data
-
-        return Loss.item(), Mse.item() ,Vlb.item()
     
     def KLLoss(self,Varience,Mean,T,X,X0):
 
@@ -203,8 +233,8 @@ class Trainer():
         ModelGrid = self.SampleLog(self.Model,self.BatchSize,SampleCond,"Model_{}".format(Step))
         EmaGrid = self.SampleLog(self.EmaModel,self.BatchSize,SampleCond,"EmaModel_{}".format(Step))
 
-        self.Board.add_image("ModelTrainSamples",ModelGrid,dataformats='HWC',global_step=Step)
-        self.Board.add_image("EmaModelTrainSamples",EmaGrid,dataformats='HWC',global_step=Step)
+        self.Board.add_image("TrainSamplesModel",ModelGrid,dataformats='HWC',global_step=Step)
+        self.Board.add_image("TrainSamplesEma",EmaGrid,dataformats='HWC',global_step=Step)
     
     def SampleLog(self,Model,N,Cond, Indicator:str):
 
@@ -223,7 +253,7 @@ class Trainer():
 
         return SampleGrid
     
-    def SaveModel(self,Indicator):
+    def SaveModel(self,Indicator)->None:
 
         assert self.SessionPath != None
 
@@ -237,5 +267,54 @@ class Trainer():
 
         OptPath = os.path.join(self.SavePath,'Optim_{}.ckpt.pt'.format(Indicator))
         torch.save(self.Optimizer.state_dict(),OptPath)
+
+    def SaveGraph(self,Dataset: DataLoader)->None:
+
+        assert self.SessionPath != None
+
+        Cond,Image = next(iter(Dataset))
+
+        Cond = Cond.to(self.Device)
+        Image = Image.to(self.Device)
+        T = torch.tensor([0]).to(self.Device)
+
+        self.Board.add_graph(self.Model,(Image,T,Cond))
+
+    def ValidationLog(self,Dataset: DataLoader,Step:int):
+
+        assert self.SessionPath != None
+
+        ValMse = []
+        ValKL = []
+
+        self.Model.eval()
+        with torch.no_grad():
+            for i,(Cond,OutImage) in enumerate(Dataset,1):
+
+                Cond ,OutImage ,T ,X ,Noise = self.PrepData(Cond,OutImage,0)
+                
+                Loss , Mse , Vlb = self.ForwardStep(X,Noise,Cond,T,OutImage)
+
+                ValMse.append(Mse.item())
+                ValKL.append(Vlb.item())
+        
+        ValMseMean = np.mean(ValMse)
+        ValVlbMean = np.mean(ValKL)
+
+        ValHybrid = ValMseMean + ValVlbMean
+
+        self.Board.add_scalar("Validation/Hybrid", ValHybrid, global_step=Step)
+        self.Board.add_scalar("Validation/MSE", ValMseMean, global_step=Step)
+        self.Board.add_scalar("Validation/Vlb", ValVlbMean, global_step=Step)
+
+        self.Logger.info("Validation Test | ValMSE:{} | ValVLB:{} | ValLoss:{} | Step:{} ".format(ValMse,ValKL,ValHybrid,Step))
+
+        self.Model.train()
+
+
+
+
+
+        
 
 

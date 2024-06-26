@@ -87,8 +87,11 @@ class MapDataSet(Dataset):
 
         self.DatasetImageSize = args['DataImageSize']
         self.ImageSize = args['ImageSize']
-        self.DataSpacing = args['DataSpacing']
         self.Zoom = args['DataZooming']
+        self.ZoomMax = args['MaxZooming']
+        self.Spacing = args['DataSpacing']
+
+        assert self.DatasetImageSize[0] >= self.ImageSize[0] and self.DatasetImageSize[1] >= self.ImageSize[1]
 
         #get input map
         self.InputMap = InputMap.ConvertKoppen()
@@ -116,9 +119,9 @@ class MapDataSet(Dataset):
                 Input = TF.vflip(Input)
                 Output = TF.vflip(Output)
 
-            ZoomScale = random.random()
+            ZoomScale = min(random.random(),self.ZoomMax)
             X = self.CropRollZoom(Input,self.ImageSize,Position,ZoomScale,Interpolation=TF.InterpolationMode.NEAREST)
-            Y = self.CropRollZoom(Output,self.ImageSize,Position,ZoomScale,Interpolation=TF.InterpolationMode.NEAREST)
+            Y = self.CropRollZoom(Output,self.ImageSize,Position,ZoomScale,Interpolation=TF.InterpolationMode.BILINEAR)
         else:
             X = self.CropAndRoll(Input,self.ImageSize,Position)
             Y = self.CropAndRoll(Output,self.ImageSize,Position)
@@ -127,21 +130,20 @@ class MapDataSet(Dataset):
 
         return X,Y
 
-    #create [N,2] np array with all possible pixel positions
+    #create [N,2] np array with pixel positions
     def GeneratePositionVector(self) -> np.array:
 
         #horizontal dimention can be wrapped
         HorDim = self.DatasetImageSize[0]
-        VerDim = max(self.DatasetImageSize[1]- self.ImageSize[1],1)
-
-        NSize = (HorDim * VerDim)
+        VerDim = max(self.DatasetImageSize[1]- self.ImageSize[1],0)+1
 
         Indices = np.stack(np.indices((HorDim,VerDim)))
         Indices = np.transpose(Indices)
 
-        Indices = Indices.reshape(NSize,2)
+        if self.Spacing == True:
+            Indices = Indices[::self.ImageSize[1],::self.ImageSize[0],:]
 
-        Indices = Indices[::self.DataSpacing,:]
+        Indices = Indices.reshape(-1,2)
 
         return Indices, len(Indices)
     
@@ -150,7 +152,12 @@ class MapDataSet(Dataset):
 
         Y,X = Position
 
-        return torch.roll(Map,-Y,dims=2)[:,X:X+Size[1],0:Size[0]]
+        if (Y + Size[0]) < Map.shape[2]:  
+            Out = Map[:,X:X+Size[1],Y:Y+Size[0]]
+        else:
+            Out = torch.roll(Map,-Y,dims=2)[:,X:X+Size[1],0:Size[0]]
+
+        return Out
     
     #Zoom function based on wrapping crop
     def CropRollZoom(self,Map,Size,Position,ZoomScale,Interpolation):

@@ -57,4 +57,4 @@ def SaveVideo(Path:str, X:list) ->None:
     VideoTensor = VideoTensor.permute(0,2,3,1)
     VideoTensor = (VideoTensor * 255).to(dtype=torch.uint8)
 
-    torchvision.io.write_video(Path,VideoTensor,60,video_codec='libx264',options={"b":"10000000"})
+    torchvision.io.write_video(Path,VideoTensor,30,video_codec='libx264',options={"b":"10000000"})
